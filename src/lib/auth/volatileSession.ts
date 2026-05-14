@@ -30,8 +30,8 @@ const INVALIDATE_URL = '/api/auth/invalidate';
 const ME_URL = '/api/auth/me';
 
 export const $session = atom<SessionIdentity | null>(null);
-export const $isAuthenticated = computed($session, s => s !== null);
-export const $userType = computed($session, s => s?.userType ?? null);
+export const $isAuthenticated = computed($session, (s: SessionIdentity | null) => s !== null);
+export const $userType = computed($session, (s: SessionIdentity | null) => s?.userType ?? null);
 
 export function hasRight(rightId: string): boolean {
   const s = $session.get();

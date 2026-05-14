@@ -62,7 +62,7 @@ async function deriveKey(): Promise<CryptoKey> {
 
   const baseKey = await crypto.subtle.importKey(
     'raw',
-    ikm,
+    ikm as BufferSource,
     { name: 'HKDF' },
     false,
     ['deriveKey'],
@@ -72,8 +72,8 @@ async function deriveKey(): Promise<CryptoKey> {
     {
       name: 'HKDF',
       hash: 'SHA-256',
-      salt: EPHEMERAL_SALT,
-      info: ENC.encode('hopepms.session.v1'),
+      salt: EPHEMERAL_SALT as BufferSource,
+      info: ENC.encode('hopepms.session.v1') as BufferSource,
     },
     baseKey,
     { name: 'AES-GCM', length: 256 },
@@ -88,9 +88,9 @@ export async function encryptString(plaintext: string): Promise<string> {
   const key = await deriveKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: 'AES-GCM', iv: iv as BufferSource },
     key,
-    ENC.encode(plaintext),
+    ENC.encode(plaintext) as BufferSource,
   );
   return bytesToB64(concat(iv, new Uint8Array(ct)));
 }
@@ -102,7 +102,7 @@ export async function decryptString(payload: string): Promise<string | null> {
     if (buf.length < 13) return null;
     const iv = buf.slice(0, 12);
     const ct = buf.slice(12);
-    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as BufferSource }, key, ct as BufferSource);
     return DEC.decode(pt);
   } catch {
     // Wrong key (new tab, new ephemeral salt) or tampered payload — treat as
