@@ -29,7 +29,7 @@ import java.util.Map;
 @RequestMapping("/api/products")
 public class ProductController {
 
-    private static final Pattern PROD_CODE = Pattern.compile("^[A-Z]{2}\\d{4}$");
+    private static final java.util.regex.Pattern PROD_CODE = java.util.regex.Pattern.compile("^[A-Z]{2}\\d{4}$");
 
     private final ProductRepository repo;
 
