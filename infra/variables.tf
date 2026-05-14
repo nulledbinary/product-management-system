@@ -125,6 +125,9 @@ variable "auth0_audience" {
 
 variable "auth0_client_secret_placeholder" {
   description = "Initial value seeded into Secrets Manager. Rotate via `aws secretsmanager update-secret` once the Auth0 application exists; lifecycle.ignore_changes keeps Terraform from overwriting it."
+# ─── Auth0 placeholder (real value set in Secrets Manager after Auth0 setup) ─
+variable "auth0_client_secret_placeholder" {
+  description = "Placeholder secret used at first apply. Update Secrets Manager once Auth0 is configured."
   type        = string
   default     = "REPLACE-ME-AFTER-AUTH0-SETUP"
   sensitive   = true
