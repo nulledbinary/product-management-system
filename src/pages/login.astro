@@ -1,0 +1,177 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Logo from '@components/ui/Logo.astro';
+
+const reason = Astro.url.searchParams.get('reason');
+const reasonText: Record<string, string> = {
+  timeout: 'Your session timed out for inactivity. Please sign in again.',
+  not_activated: 'Your account is pending administrator activation.',
+  auth_required: 'Please sign in to continue.',
+  forbidden: 'You do not have access to that page.',
+  guard_error: 'We could not verify your session — please sign in again.',
+};
+const banner = reason ? reasonText[reason] : null;
+---
+<BaseLayout title="Sign in · HopePMS" variant="hero">
+  <main class="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+    <div class="grid w-full gap-10 lg:grid-cols-2 lg:gap-16">
+      <!-- ─── Marketing side ─────────────────────────────────────────── -->
+      <section class="hidden flex-col justify-between lg:flex">
+        <Logo />
+
+        <div class="space-y-7">
+          <span class="chip-user">Hope, Inc. · Internal</span>
+          <h1 class="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-balance">
+            Manage your product universe with
+            <span class="grad-text">surgical precision</span>.
+          </h1>
+          <p class="max-w-md text-base leading-relaxed text-ink-muted text-pretty">
+            Role-aware, audit-stamped, and zero-hard-delete by design. Built on
+            Astro &amp; AWS — secured by Auth0, ready for production.
+          </p>
+
+          <ul class="space-y-3 text-sm text-ink-muted">
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-accent-mint/15 text-accent-mint">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <span><span class="text-ink">Encrypted session tokens</span> &mdash; wiped on tab close.</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-accent-violet/15 text-accent-violet">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <span><span class="text-ink">Soft-delete only</span> &mdash; no DELETE statements anywhere.</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-accent-cyan/15 text-accent-cyan">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <span><span class="text-ink">SUPERADMIN protection</span> at both UI and database layers.</span>
+            </li>
+          </ul>
+        </div>
+
+        <p class="text-xs text-ink-dim">
+          © 2025–2026 Hope, Inc. · Prepared by Boris Gamaliel D. Duque &amp; Yna Solitario
+        </p>
+      </section>
+
+      <!-- ─── Form side ──────────────────────────────────────────────── -->
+      <section class="flex items-center justify-center">
+        <div class="glass-strong w-full max-w-md p-8 sm:p-10 animate-fade-in">
+          <div class="mb-6 lg:hidden"><Logo /></div>
+
+          <header class="mb-7">
+            <h2 class="font-display text-2xl font-semibold tracking-tight">Welcome back</h2>
+            <p class="mt-1 text-sm text-ink-muted">Sign in to access HopePMS.</p>
+          </header>
+
+          {banner && (
+            <div role="alert" class="mb-5 rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber">
+              {banner}
+            </div>
+          )}
+
+          <form id="login-form" class="space-y-4" novalidate autocomplete="on">
+            <div>
+              <label for="email" class="field-label">Work email</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="username"
+                required
+                placeholder="you@hope.inc"
+                class="field"
+              />
+              <p class="field-error hidden" data-error="email"></p>
+            </div>
+
+            <div>
+              <label for="password" class="field-label">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                placeholder="••••••••••••"
+                class="field"
+              />
+              <p class="field-error hidden" data-error="password"></p>
+            </div>
+
+            <button type="submit" id="email-submit" class="btn-primary w-full">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/></svg>
+              Continue
+            </button>
+          </form>
+
+          <div class="my-6 divider-text"><span>or</span></div>
+
+          <button type="button" id="google-btn" class="btn-secondary w-full">
+            <img src="/google-icon.svg" alt="" width="16" height="16" />
+            Sign in with Google
+          </button>
+
+          <p class="mt-7 text-center text-sm text-ink-muted">
+            Don't have an account?
+            <a href="/register" class="font-medium text-brand-300 hover:text-brand-200 transition-colors">Register</a>
+          </p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { loginWithEmail, loginWithGoogle } from '/src/lib/auth/auth0Client.ts';
+    import { hasTraversal } from '/src/lib/security/pathGuard.ts';
+
+    const form = document.getElementById('login-form');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const errEmail = document.querySelector('[data-error="email"]');
+    const errPwd   = document.querySelector('[data-error="password"]');
+
+    function setError(el, msg) {
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.toggle('hidden', !msg);
+    }
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      setError(errEmail, ''); setError(errPwd, '');
+
+      const email = String(emailInput.value || '').trim();
+      const password = String(passwordInput.value || '');
+
+      if (!/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,24}$/.test(email)) {
+        setError(errEmail, 'Enter a valid email.');
+        return;
+      }
+      if (hasTraversal(email) || hasTraversal(password)) {
+        setError(errEmail, 'Invalid characters in input.');
+        return;
+      }
+      if (password.length < 8) {
+        setError(errPwd, 'Password must be at least 8 characters.');
+        return;
+      }
+
+      try {
+        await loginWithEmail(email, password);
+        // Auth0 will redirect; wipe the password from memory either way.
+        passwordInput.value = '';
+      } catch (err) {
+        setError(errPwd, 'Could not start sign-in. Try again.');
+        console.error(err);
+      }
+    });
+
+    document.getElementById('google-btn')?.addEventListener('click', async () => {
+      try { await loginWithGoogle(); } catch (e) { console.error(e); }
+    });
+  </script>
+</BaseLayout>

@@ -1,0 +1,98 @@
+---
+import AppShell from '@layouts/AppShell.astro';
+---
+<AppShell title="Product Listing" subtitle="REP_001 · Active products with current price." requireRight="REP_001">
+  <section class="space-y-6">
+    <div class="flex items-center justify-between">
+      <p class="text-sm text-ink-muted">Sortable, filterable. Export the current view to CSV.</p>
+      <div class="flex gap-2">
+        <button id="csv-btn" class="btn-secondary">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="card !p-0 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th><button data-sort="prodCode" class="inline-flex items-center gap-1 hover:text-ink">Code <span class="sort-arrow"></span></button></th>
+              <th><button data-sort="description" class="inline-flex items-center gap-1 hover:text-ink">Description <span class="sort-arrow"></span></button></th>
+              <th>Unit</th>
+              <th><button data-sort="unitPrice" class="inline-flex items-center gap-1 hover:text-ink">Price <span class="sort-arrow"></span></button></th>
+              <th><button data-sort="effDate" class="inline-flex items-center gap-1 hover:text-ink">Effective <span class="sort-arrow"></span></button></th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            {Array.from({ length: 6 }).map(() => (
+              <tr>
+                <td><div class="skeleton h-4 w-14"></div></td>
+                <td><div class="skeleton h-4 w-56"></div></td>
+                <td><div class="skeleton h-4 w-10"></div></td>
+                <td><div class="skeleton h-4 w-16"></div></td>
+                <td><div class="skeleton h-4 w-24"></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <script type="module">
+    import { getProductReport } from '/src/lib/api/users.ts';
+    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+
+    const tbody = document.getElementById('rows');
+    let rows = [];
+    let sortKey = 'prodCode';
+    let sortDir = 1;
+
+    function fmt(n) { return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(n)); }
+
+    function render() {
+      const sorted = [...rows].sort((a, b) => {
+        const x = a[sortKey], y = b[sortKey];
+        if (typeof x === 'number' && typeof y === 'number') return (x - y) * sortDir;
+        return String(x).localeCompare(String(y)) * sortDir;
+      });
+      tbody.innerHTML = sorted.map((r) => `
+        <tr>
+          <td class="font-mono text-xs">${escapeHtml(r.prodCode)}</td>
+          <td>${escapeHtml(r.description)}</td>
+          <td><span class="chip-user">${escapeHtml(r.unit)}</span></td>
+          <td class="font-mono text-sm">${escapeHtml(fmt(r.unitPrice))}</td>
+          <td class="text-ink-muted text-xs font-mono">${escapeHtml(r.effDate)}</td>
+        </tr>`).join('');
+    }
+
+    document.querySelectorAll('[data-sort]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const k = b.getAttribute('data-sort');
+        if (k === sortKey) sortDir = -sortDir; else { sortKey = k; sortDir = 1; }
+        render();
+      });
+    });
+
+    document.getElementById('csv-btn')?.addEventListener('click', () => {
+      const header = ['prodCode','description','unit','unitPrice','effDate'];
+      const csv = [header.join(',')].concat(
+        rows.map((r) => header.map((h) => `"${String(r[h] ?? '').replace(/"/g,'""')}"`).join(','))
+      ).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `product-listing-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    (async () => {
+      try { rows = await getProductReport(); render(); }
+      catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed to load.')}</td></tr>`;
+      }
+    })();
+  </script>
+</AppShell>

@@ -1,0 +1,333 @@
+---
+import AppShell from '@layouts/AppShell.astro';
+import ProductFormModal from '@components/ProductFormModal.astro';
+import ConfirmModal from '@components/ConfirmModal.astro';
+---
+<AppShell title="Products" subtitle="Manage your active catalogue.">
+  <section class="space-y-6">
+    <!-- ─── Stats strip ─────────────────────────────────────────────── -->
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div class="card !p-5">
+        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Active products</p>
+        <p class="mt-2 font-display text-3xl font-semibold" data-stat="active">—</p>
+        <p class="mt-1 text-xs text-ink-dim">Visible to all users.</p>
+      </div>
+      <div class="card !p-5">
+        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Distinct units</p>
+        <p class="mt-2 font-display text-3xl font-semibold" data-stat="units">—</p>
+        <p class="mt-1 text-xs text-ink-dim">pc · ea · mtr · pkg · ltr</p>
+      </div>
+      <div class="card !p-5">
+        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Latest change</p>
+        <p class="mt-2 font-display text-sm font-medium truncate" data-stat="latest">—</p>
+        <p class="mt-1 text-xs text-ink-dim" data-stat="latestWhen"></p>
+      </div>
+    </div>
+
+    <!-- ─── Toolbar ─────────────────────────────────────────────────── -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="relative flex-1 max-w-md">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search-input" type="search" placeholder="Search by code or description…" class="field pl-9" />
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="refresh-btn" class="btn-secondary">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15A9 9 0 0 1 5.64 18.36L1 14"/></svg>
+          Refresh
+        </button>
+        <button id="add-btn" data-right="PRD_ADD" class="btn-primary hidden">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add product
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── Table ───────────────────────────────────────────────────── -->
+    <div class="card !p-0 overflow-hidden">
+      <div class="overflow-x-auto scroll-fade-mask">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Description</th>
+              <th>Unit</th>
+              <th class="text-right">Current price</th>
+              <th data-col="stamp" class="hidden">Audit stamp</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <!-- skeleton rows -->
+            {Array.from({ length: 6 }).map(() => (
+              <tr>
+                <td><div class="skeleton h-4 w-16"></div></td>
+                <td><div class="skeleton h-4 w-48"></div></td>
+                <td><div class="skeleton h-4 w-10"></div></td>
+                <td><div class="skeleton h-4 w-20 ml-auto"></div></td>
+                <td data-col="stamp" class="hidden"><div class="skeleton h-4 w-40"></div></td>
+                <td><div class="skeleton h-4 w-24 ml-auto"></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="hidden p-12 text-center">
+        <div class="mx-auto h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center">
+          <svg class="h-6 w-6 text-ink-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/></svg>
+        </div>
+        <p class="mt-3 font-display text-base font-medium">No products yet</p>
+        <p class="text-sm text-ink-dim">Click "Add product" to create your first one.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Modals ────────────────────────────────────────────────────── -->
+  <ProductFormModal id="add-modal" mode="add" />
+  <ProductFormModal id="edit-modal" mode="edit" />
+  <ConfirmModal id="delete-modal"
+                title="Soft-delete this product?"
+                message="This sets record_status to INACTIVE. The product disappears from USER views but ADMIN/SUPERADMIN can recover it from Deleted Items."
+                confirmLabel="Soft delete"
+                variant="danger" />
+
+  <!-- ─── Price history drawer ──────────────────────────────────────── -->
+  <div id="history-drawer" class="modal-backdrop hidden" data-modal-backdrop="history-drawer"></div>
+  <aside id="history-panel" class="fixed right-0 top-0 z-50 h-full w-[min(440px,92vw)] glass-strong rounded-none border-l border-line p-6 hidden flex-col gap-4" data-modal="history-drawer">
+    <header class="flex items-start justify-between">
+      <div>
+        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-dim">Price history</p>
+        <h2 id="history-title" class="font-display text-lg font-semibold mt-0.5">—</h2>
+      </div>
+      <button type="button" class="btn-ghost h-9 w-9 !p-0" data-modal-close="history-drawer" aria-label="Close">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+    <ul id="history-list" class="space-y-2 overflow-y-auto"></ul>
+  </aside>
+
+  <script type="module">
+    import {
+      listProducts, createProduct, updateProduct,
+      softDeleteProduct, getPriceHistory,
+    } from '/src/lib/api/products.ts';
+    import { readSession } from '/src/lib/security/session.ts';
+    import { canSeeStamp, useRights } from '/src/lib/auth/rights.ts';
+    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+    import { ValidationError } from '/src/lib/security/pathGuard.ts';
+
+    const tbody = document.getElementById('rows');
+    const emptyState = document.getElementById('empty-state');
+    const search = document.getElementById('search-input');
+    const stampCols = document.querySelectorAll('[data-col="stamp"]');
+
+    let allProducts = [];
+    let session = null;
+    let can = () => false;
+    let showStamp = false;
+
+    function fmtPrice(n) {
+      if (n == null || Number.isNaN(Number(n))) return '—';
+      return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(n));
+    }
+    function debounce(fn, ms = 200) {
+      let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+    }
+
+    function render(rows) {
+      if (rows.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      tbody.innerHTML = rows.map((p) => `
+        <tr data-row="${escapeHtml(p.prodCode)}">
+          <td class="font-mono text-xs">${escapeHtml(p.prodCode)}</td>
+          <td>
+            <button class="text-left hover:text-brand-300 transition-colors" data-history="${escapeHtml(p.prodCode)}">${escapeHtml(p.description)}</button>
+          </td>
+          <td><span class="chip-user">${escapeHtml(p.unit)}</span></td>
+          <td class="text-right font-mono text-sm">${escapeHtml(fmtPrice(p.currentPrice))}</td>
+          ${showStamp ? `<td class="text-xs text-ink-dim font-mono">${escapeHtml(p.stamp ?? '')}</td>` : ''}
+          <td>
+            <div class="flex items-center justify-end gap-1">
+              ${can('PRD_EDIT') ? `<button class="btn-ghost h-8 px-2.5 text-xs" data-edit="${escapeHtml(p.prodCode)}">Edit</button>` : ''}
+              ${can('PRD_DEL') ? `<button class="btn-ghost h-8 px-2.5 text-xs text-accent-rose hover:bg-accent-rose/10" data-delete="${escapeHtml(p.prodCode)}">Delete</button>` : ''}
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    function applyFilter() {
+      const q = search.value.trim().toLowerCase();
+      const filtered = !q ? allProducts :
+        allProducts.filter((p) =>
+          p.prodCode.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q));
+      render(filtered);
+    }
+
+    function updateStats(list) {
+      document.querySelector('[data-stat="active"]').textContent = String(list.length);
+      const units = new Set(list.map((p) => p.unit));
+      document.querySelector('[data-stat="units"]').textContent = String(units.size);
+      const latest = [...list].sort((a, b) => (b.stamp ?? '').localeCompare(a.stamp ?? ''))[0];
+      document.querySelector('[data-stat="latest"]').textContent = latest ? `${latest.prodCode} · ${latest.description}` : '—';
+      document.querySelector('[data-stat="latestWhen"]').textContent = latest?.stamp ?? '';
+    }
+
+    async function refresh() {
+      try {
+        const list = await listProducts();
+        allProducts = list;
+        updateStats(list);
+        applyFilter();
+      } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="${showStamp ? 6 : 5}" class="p-8 text-center text-sm text-accent-rose">Could not load products. ${escapeHtml(e?.message ?? '')}</td></tr>`;
+      }
+    }
+
+    // ── Modal helpers ─────────────────────────────────────────────────
+    function openModal(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.replace('hidden', 'flex');
+      document.querySelector(`[data-modal="${id}"]`)?.classList.add('block');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.remove('hidden');
+    }
+    function closeModal(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.add('hidden');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.add('hidden');
+    }
+    document.querySelectorAll('[data-modal-close]').forEach((b) =>
+      b.addEventListener('click', () => closeModal(b.getAttribute('data-modal-close'))));
+    document.querySelectorAll('[data-modal-backdrop]').forEach((b) =>
+      b.addEventListener('click', () => closeModal(b.getAttribute('data-modal-backdrop'))));
+
+    function showFormError(form, field, msg) {
+      const el = form.querySelector(`[data-error="${field}"]`);
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.toggle('hidden', !msg);
+    }
+    function clearFormErrors(form) {
+      form.querySelectorAll('[data-error]').forEach((el) => { el.textContent = ''; el.classList.add('hidden'); });
+    }
+
+    async function handleFormSubmit(form, mode) {
+      clearFormErrors(form);
+      const data = new FormData(form);
+      const input = {
+        prodCode: String(data.get('prodCode') || '').trim().toUpperCase(),
+        description: String(data.get('description') || ''),
+        unit: String(data.get('unit') || ''),
+        unitPrice: Number(data.get('unitPrice') || 0),
+      };
+      try {
+        if (mode === 'add') await createProduct(input);
+        else await updateProduct(input);
+        closeModal(mode === 'add' ? 'add-modal' : 'edit-modal');
+        await refresh();
+      } catch (e) {
+        if (e instanceof ValidationError) {
+          showFormError(form, e.field, e.message);
+        } else {
+          showFormError(form, 'description', e?.message ?? 'Could not save.');
+        }
+      }
+    }
+
+    document.querySelector('[data-product-form="add"]')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleFormSubmit(e.currentTarget, 'add');
+    });
+    document.querySelector('[data-product-form="edit"]')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleFormSubmit(e.currentTarget, 'edit');
+    });
+
+    // ── Table action delegation ──────────────────────────────────────
+    let pendingDeleteCode = null;
+    tbody.addEventListener('click', async (e) => {
+      const t = e.target.closest('[data-edit], [data-delete], [data-history]');
+      if (!t) return;
+      if (t.matches('[data-edit]')) {
+        const code = t.getAttribute('data-edit');
+        const p = allProducts.find((x) => x.prodCode === code);
+        if (!p) return;
+        const form = document.querySelector('[data-product-form="edit"]');
+        form.prodCode.value = p.prodCode;
+        form.description.value = p.description;
+        form.unit.value = p.unit;
+        form.unitPrice.value = p.currentPrice ?? '';
+        openModal('edit-modal');
+      } else if (t.matches('[data-delete]')) {
+        pendingDeleteCode = t.getAttribute('data-delete');
+        const msg = document.querySelector('#delete-modal [data-confirm-message]');
+        msg.textContent = `Soft-delete product ${pendingDeleteCode}? It will be hidden from USER views but recoverable by ADMIN/SUPERADMIN.`;
+        openModal('delete-modal');
+      } else if (t.matches('[data-history]')) {
+        const code = t.getAttribute('data-history');
+        await openHistory(code);
+      }
+    });
+
+    document.querySelector('[data-confirm="delete-modal"]')?.addEventListener('click', async () => {
+      if (!pendingDeleteCode) return;
+      try {
+        await softDeleteProduct(pendingDeleteCode);
+        closeModal('delete-modal');
+        await refresh();
+      } catch (e) {
+        alert(e?.message ?? 'Delete failed.');
+      }
+    });
+
+    async function openHistory(prodCode) {
+      const title = document.getElementById('history-title');
+      const list = document.getElementById('history-list');
+      title.textContent = prodCode;
+      list.innerHTML = '<li class="skeleton h-12 rounded-xl"></li><li class="skeleton h-12 rounded-xl"></li>';
+      openModal('history-drawer');
+      try {
+        const rows = await getPriceHistory(prodCode);
+        if (!rows.length) {
+          list.innerHTML = '<li class="text-sm text-ink-dim p-4 text-center">No price history yet.</li>';
+          return;
+        }
+        list.innerHTML = rows
+          .sort((a, b) => b.effDate.localeCompare(a.effDate))
+          .map((r) => `
+            <li class="glass !p-4 flex items-center justify-between">
+              <div>
+                <p class="text-2xs font-medium uppercase tracking-wider text-ink-dim">${escapeHtml(r.effDate)}</p>
+                <p class="mt-0.5 font-mono text-sm">${escapeHtml(new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(r.unitPrice)))}</p>
+              </div>
+              ${showStamp && r.stamp ? `<span class="text-2xs text-ink-dim font-mono">${escapeHtml(r.stamp)}</span>` : ''}
+            </li>`)
+          .join('');
+      } catch (e) {
+        list.innerHTML = `<li class="text-sm text-accent-rose p-4 text-center">${escapeHtml(e?.message ?? 'Failed to load history.')}</li>`;
+      }
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────
+    (async () => {
+      session = await readSession();
+      can = useRights(session);
+      showStamp = canSeeStamp(session);
+      stampCols.forEach((c) => c.classList.toggle('hidden', !showStamp));
+
+      // Reveal rights-gated buttons
+      document.querySelectorAll('[data-right]').forEach((el) => {
+        const r = el.getAttribute('data-right');
+        if (can(r)) el.classList.remove('hidden');
+      });
+
+      document.getElementById('add-btn')?.addEventListener('click', () => openModal('add-modal'));
+      document.getElementById('refresh-btn')?.addEventListener('click', refresh);
+      search.addEventListener('input', debounce(applyFilter, 150));
+
+      await refresh();
+    })().catch(console.error);
+  </script>
+</AppShell>

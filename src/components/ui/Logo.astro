@@ -1,0 +1,18 @@
+---
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+---
+<a href="/products" class="flex items-center gap-2.5 group" aria-label="HopePMS home">
+  <span class="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-grad shadow-glow ring-1 ring-white/20 transition-transform group-hover:scale-105">
+    <svg viewBox="0 0 24 24" class="h-5 w-5 text-white" fill="currentColor" aria-hidden="true">
+      <path d="M6 4h2.8v6.6h6.4V4H18v16h-2.8v-7.2H8.8V20H6z"/>
+    </svg>
+    <span class="absolute -inset-1 rounded-2xl bg-brand-500/30 blur-md opacity-0 group-hover:opacity-70 transition-opacity -z-10"></span>
+  </span>
+  {!compact && (
+    <div class="leading-tight">
+      <div class="font-display text-base font-semibold tracking-tight">HopePMS</div>
+      <div class="text-2xs uppercase tracking-[0.18em] text-ink-dim">Product Suite</div>
+    </div>
+  )}
+</a>
