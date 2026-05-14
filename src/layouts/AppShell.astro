@@ -33,10 +33,10 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
     window.__HOPEPMS_GUARD__ = { requireRight: requireRight ?? null, requireAdmin: !!requireAdmin };
   </script>
 
-  <script type="module">
-    import { readSession, bindLifecycleHandlers, sessionTimeoutMs, lastTouchedAt, touch } from '/src/lib/security/session.ts';
-    import { startInactivityWatchdog } from '/src/lib/security/timeout.ts';
-    import { signOut } from '/src/lib/auth/auth0Client.ts';
+  <script>
+    import { readSession, bindLifecycleHandlers, sessionTimeoutMs, lastTouchedAt, touch } from '@lib/security/session';
+    import { startInactivityWatchdog } from '@lib/security/timeout';
+    import { signOut } from '@lib/auth/auth0Client';
 
     const { requireRight, requireAdmin } = window.__HOPEPMS_GUARD__ || {};
     const main = document.getElementById('app-main');

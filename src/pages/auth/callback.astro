@@ -15,8 +15,8 @@ import BaseLayout from '@layouts/BaseLayout.astro';
     </div>
   </main>
 
-  <script type="module">
-    import { handleRedirectCallback } from '/src/lib/auth/auth0Client.ts';
+  <script>
+    import { handleRedirectCallback } from '@lib/auth/auth0Client';
 
     const status = document.getElementById('status-text');
     const err = document.getElementById('error-text');

@@ -48,9 +48,9 @@ import ConfirmModal from '@components/ConfirmModal.astro';
 
   <ConfirmModal id="user-confirm" title="Confirm" message="" confirmLabel="Confirm" />
 
-  <script type="module">
-    import { listUsers, activateUser, deactivateUser } from '/src/lib/api/users.ts';
-    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+  <script>
+    import { listUsers, activateUser, deactivateUser } from '@lib/api/users';
+    import { escapeHtml } from '@lib/security/sanitize';
 
     const tbody = document.getElementById('rows');
     let pending = null;

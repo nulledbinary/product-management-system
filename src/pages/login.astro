@@ -124,9 +124,9 @@ const banner = reason ? reasonText[reason] : null;
     </div>
   </main>
 
-  <script type="module">
-    import { loginWithEmail, loginWithGoogle } from '/src/lib/auth/auth0Client.ts';
-    import { hasTraversal } from '/src/lib/security/pathGuard.ts';
+  <script>
+    import { loginWithEmail, loginWithGoogle } from '@lib/auth/auth0Client';
+    import { hasTraversal } from '@lib/security/pathGuard';
 
     const form = document.getElementById('login-form');
     const emailInput = document.getElementById('email');
