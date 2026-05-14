@@ -1,5 +1,20 @@
 ---
-// Always send authenticated traffic to the products dashboard; the guard
-// inside AppShell will bounce unauthenticated users back to /login.
-return Astro.redirect('/products');
+// Static landing page: bounces to /products. The AppShell guard there will
+// kick unauthenticated visitors over to /login.
+const target = '/products';
 ---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <link rel="canonical" href={target} />
+    <title>HopePMS</title>
+  </head>
+  <body>
+    <script is:inline>window.location.replace('/products');</script>
+    <noscript>
+      <a href={target}>Continue to HopePMS</a>
+    </noscript>
+  </body>
+</html>

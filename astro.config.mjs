@@ -1,18 +1,28 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
-import node from '@astrojs/node';
 
+// HopePMS frontend: static prerender hosted on Amplify. All dynamic concerns
+// (auth, sessions, data) live in the Spring Boot backend on ECS, fronted by
+// CloudFront and reached from the browser via the Amplify /api/* rewrite rule.
+//
 // https://astro.build/config
 export default defineConfig({
-  output: 'server',
-  adapter: node({ mode: 'standalone' }),
+  output: 'static',
   site: 'https://hopepms.example.com',
   server: { port: 4321, host: true },
   integrations: [
     tailwind({ applyBaseStyles: false }),
   ],
   vite: {
-    ssr: { noExternal: ['@auth0/auth0-spa-js'] },
+    // Dev-only: proxy /api/* to the Spring Boot backend running on localhost.
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8080',
+          changeOrigin: false,
+        },
+      },
+    },
     build: {
       cssMinify: 'lightningcss',
       rollupOptions: {
