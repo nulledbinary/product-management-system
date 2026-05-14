@@ -104,9 +104,27 @@ variable "ecs_desired_count" {
   default     = 2
 }
 
-# ─── Auth0 placeholder (real value set in Secrets Manager after Auth0 setup) ─
+# ─── Auth0 ────────────────────────────────────────────────────────────────
+# Tenant + API values. Public (non-secret) values are wired into the ECS task
+# as plain env vars; the client secret lives in Secrets Manager.
+
+variable "auth0_domain" {
+  description = "Auth0 tenant domain (e.g. dev-xxx.us.auth0.com)."
+  type        = string
+}
+
+variable "auth0_client_id" {
+  description = "Auth0 Application Client ID."
+  type        = string
+}
+
+variable "auth0_audience" {
+  description = "Auth0 API identifier (the audience parameter on /authorize)."
+  type        = string
+}
+
 variable "auth0_client_secret_placeholder" {
-  description = "Placeholder secret used at first apply. Update Secrets Manager once Auth0 is configured."
+  description = "Initial value seeded into Secrets Manager. Rotate via `aws secretsmanager update-secret` once the Auth0 application exists; lifecycle.ignore_changes keeps Terraform from overwriting it."
   type        = string
   default     = "REPLACE-ME-AFTER-AUTH0-SETUP"
   sensitive   = true

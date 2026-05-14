@@ -5,6 +5,15 @@ resource "aws_db_subnet_group" "main" {
   tags = { Name = "${local.name_prefix}-rds" }
 }
 
+# RDS deprecates minor versions over time and availability varies per region.
+# Let Terraform pick the highest version that's actually offered in this
+# region from a preferred list (newest first). The result is stable across
+# applies as long as one of these stays available.
+data "aws_rds_engine_version" "postgres" {
+  engine             = "postgres"
+  preferred_versions = ["16.6", "16.4", "16.3", "16.2", "16.1"]
+}
+
 resource "aws_db_parameter_group" "postgres16" {
   name        = "${local.name_prefix}-pg16"
   family      = "postgres16"
@@ -25,7 +34,7 @@ resource "random_password" "db_master" {
 resource "aws_db_instance" "main" {
   identifier             = "${local.name_prefix}-db"
   engine                 = "postgres"
-  engine_version         = "16.4"
+  engine_version         = data.aws_rds_engine_version.postgres.version
   instance_class         = var.db_instance_class
   allocated_storage      = var.db_allocated_storage_gb
   max_allocated_storage  = var.db_allocated_storage_gb * 4
