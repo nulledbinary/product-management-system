@@ -2,7 +2,7 @@ name: deploy-backend
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-backend.yml'
@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: ap-southeast-1
   ECR_REPOSITORY: hopepms/backend
   ECS_CLUSTER: hopepms-prod
   ECS_SERVICE: hopepms-backend
