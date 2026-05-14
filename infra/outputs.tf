@@ -79,12 +79,12 @@ output "secret_auth0_arn" {
 }
 
 output "auth0_setup_hint" {
-  description = "Paste these into the Auth0 application settings."
+  description = "Paste these into the Auth0 application settings. Replace <amplify-origin> with the URL from the Amplify console."
   value = {
     application_type    = "Regular Web Application"
-    callback_url        = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}/api/auth/callback"
-    logout_url          = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}/login"
-    allowed_web_origin  = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}"
+    callback_url        = "${var.amplify_origin}/api/auth/callback"
+    logout_url          = "${var.amplify_origin}/login"
+    allowed_web_origin  = var.amplify_origin
     audience            = var.auth0_audience
     after_setup_command = "aws secretsmanager update-secret --region ${var.aws_region} --secret-id ${aws_secretsmanager_secret.auth0.name} --secret-string '{\"AUTH0_CLIENT_SECRET\":\"<paste-from-auth0>\"}'"
   }
