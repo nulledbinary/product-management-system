@@ -125,7 +125,7 @@ const banner = reason ? reasonText[reason] : null;
   </main>
 
   <script type="module">
-    import { startLogin } from '/src/lib/auth/volatileSession.ts';
+    import { loginWithEmail, loginWithGoogle } from '/src/lib/auth/auth0Client.ts';
     import { hasTraversal } from '/src/lib/security/pathGuard.ts';
 
     const form = document.getElementById('login-form');
@@ -140,12 +140,7 @@ const banner = reason ? reasonText[reason] : null;
       el.classList.toggle('hidden', !msg);
     }
 
-    // Email/password is owned by Auth0 Universal Login — the form does light
-    // client-side validation, then hands off to the backend's /api/auth/start
-    // endpoint, which 302s to Auth0 with the email pre-filled. Auth0 returns
-    // to /api/auth/callback on the backend; the backend sets the volatile
-    // cookie and 302s back to /products.
-    form?.addEventListener('submit', (e) => {
+    form?.addEventListener('submit', async (e) => {
       e.preventDefault();
       setError(errEmail, ''); setError(errPwd, '');
 
@@ -165,14 +160,18 @@ const banner = reason ? reasonText[reason] : null;
         return;
       }
 
-      // Wipe the password from memory — the server never sees it; Auth0 does.
-      passwordInput.value = '';
-      const params = new URLSearchParams({ returnTo: '/products', login_hint: email });
-      window.location.assign(`/api/auth/start?${params.toString()}`);
+      try {
+        await loginWithEmail(email, password);
+        // Auth0 will redirect; wipe the password from memory either way.
+        passwordInput.value = '';
+      } catch (err) {
+        setError(errPwd, 'Could not start sign-in. Try again.');
+        console.error(err);
+      }
     });
 
-    document.getElementById('google-btn')?.addEventListener('click', () => {
-      startLogin('google-oauth2', '/products');
+    document.getElementById('google-btn')?.addEventListener('click', async () => {
+      try { await loginWithGoogle(); } catch (e) { console.error(e); }
     });
   </script>
 </BaseLayout>
