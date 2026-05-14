@@ -13,7 +13,7 @@ concurrency:
 
 permissions:
   id-token: write        # OIDC — no static AWS keys
-  contents: read
+  contents: write        # create deploy/backend/* git tag
 
 env:
   AWS_REGION: ap-southeast-1
