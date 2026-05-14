@@ -18,7 +18,15 @@ interface JwtClaims {
   [k: string]: unknown;
 }
 
-interface Jwk { kid: string; kty: string; n: string; e: string; alg?: string; use?: string }
+interface Jwk {
+  kid: string;
+  kty: string;
+  n: string;
+  e: string;
+  alg?: string;
+  use?: string;
+  [key: string]: string | undefined;
+}
 
 let cachedJwks: { fetchedAt: number; keys: Jwk[] } | null = null;
 const JWKS_TTL_MS = 10 * 60 * 1000;
@@ -46,7 +54,7 @@ function decodePart<T>(part: string): T {
 }
 
 function buildKey(jwk: Jwk): string {
-  const keyObj = createPublicKey({ key: jwk as unknown as object, format: 'jwk' });
+  const keyObj = createPublicKey({ key: jwk, format: 'jwk' });
   return keyObj.export({ format: 'pem', type: 'spki' }) as string;
 }
 
