@@ -1,0 +1,5 @@
+---
+// Always send authenticated traffic to the products dashboard; the guard
+// inside AppShell will bounce unauthenticated users back to /login.
+return Astro.redirect('/products');
+---

@@ -1,0 +1,199 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  Project-specific reference materials (kept locally, never committed)
+# ═══════════════════════════════════════════════════════════════════════
+HopePMS.docx
+PROJECT_PLAN.md
+HopeDB*.sql
+HopeDB (*).sql
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Claude Code & AI tooling caches
+# ═══════════════════════════════════════════════════════════════════════
+.claude/
+.aider*
+.cursor/
+*.claude-code.log
+Anthropic.*.log
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Node / package managers
+# ═══════════════════════════════════════════════════════════════════════
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache
+.yarn/install-state.gz
+.yarn/build-state.yml
+.yarn/unplugged
+.yarn/sdks
+.pnp.*
+package-lock.json.bak
+yarn-error.log
+npm-shrinkwrap.json.bak
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Astro / Vite build artifacts
+# ═══════════════════════════════════════════════════════════════════════
+dist/
+.astro/
+.output/
+.vercel/
+.netlify/
+.svelte-kit/
+
+# ═══════════════════════════════════════════════════════════════════════
+#  TypeScript
+# ═══════════════════════════════════════════════════════════════════════
+*.tsbuildinfo
+.tsbuildinfo
+
+# ═══════════════════════════════════════════════════════════════════════
+#  AWS Lambda / Amplify / SAM / CDK / Serverless
+# ═══════════════════════════════════════════════════════════════════════
+server/dist/
+*.zip
+.serverless/
+.sst/
+.aws-sam/
+cdk.out/
+.amplify/
+amplify/.config/local-*
+amplify/team-provider-info.json
+amplify/backend/.temp/
+aws-exports.js
+.aws/
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Environment / secrets (never commit any of these)
+# ═══════════════════════════════════════════════════════════════════════
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+.env.test
+# Keep the example file checked in
+!.env.example
+
+# Certificates & key material
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+secrets.json
+credentials.json
+*.secret
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Database dumps / backups (we keep server/db/*.sql; ignore ad-hoc dumps)
+# ═══════════════════════════════════════════════════════════════════════
+*.dump
+*.sql.bak
+*.sql.backup
+*.pgdump
+pgdata/
+db-backups/
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Test / coverage
+# ═══════════════════════════════════════════════════════════════════════
+coverage/
+.nyc_output/
+*.lcov
+.vitest/
+test-results/
+playwright-report/
+.playwright/
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Logs
+# ═══════════════════════════════════════════════════════════════════════
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Editors & IDEs
+# ═══════════════════════════════════════════════════════════════════════
+.vscode/
+.idea/
+.fleet/
+.history/
+*.swp
+*.swo
+*.swn
+*.sublime-workspace
+*.sublime-project
+*~
+.\#*
+\#*\#
+.project
+.classpath
+.settings/
+
+# ═══════════════════════════════════════════════════════════════════════
+#  OS junk
+# ═══════════════════════════════════════════════════════════════════════
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# Linux
+.directory
+.Trash-*
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Temp / backup / merge artifacts
+# ═══════════════════════════════════════════════════════════════════════
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+tmp/
+temp/
+.tmp/
+.cache/
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Infrastructure / Terraform (in case it's added later)
+# ═══════════════════════════════════════════════════════════════════════
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!terraform.tfvars.example
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Misc
+# ═══════════════════════════════════════════════════════════════════════
+.eslintcache
+.stylelintcache
+.prettiercache
+*.pid
+*.seed
+*.pid.lock

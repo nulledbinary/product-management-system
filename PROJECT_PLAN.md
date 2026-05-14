@@ -20,7 +20,7 @@ The system allows authorized users to manage product records with access dynamic
 
 | Layer | Technology | Purpose |
 | :---- | :---- | :---- |
-| **Frontend** | Astro | High-performance UI with Server-Side Rendering (SSR). |
+| **Frontend** | Astro & AWS Amplify | High-performance UI with Server-Side Rendering (SSR). Hosted on AWS Amplify. |
 | **Authentication** | Auth0 | Identity management, RBAC, and Google OAuth 2.0. |
 | **Backend API** | AWS Lambda | Serverless business logic and CRUD operations. |
 | **Database** | Amazon RDS (PostgreSQL) | Managed relational database for HopeDB. |
@@ -37,26 +37,6 @@ The system allows authorized users to manage product records with access dynamic
 | **REP\_002** (Top Selling) | ✔ YES | ✘ NO | ✘ NO | Report\_Mod |
 | **ADM\_USER** (Manage Users) | ✔ YES | ✘ NO | ✘ NO | Adm\_Mod |
 
-## **📅 6-Week Sprint Plan**
-
-### **Sprint 1: Weeks 1–2 (Infrastructure & Identity)**
-
-* Scaffold Astro project and configure Auth0 for Google OAuth and Email sign-in.  
-* Initialize AWS RDS with HopeDB schema and seed the **SUPERADMIN** account.  
-* Implement Auth0 Actions for auto-provisioning new users as USER / INACTIVE.
-
-### **Sprint 2: Weeks 3–4 (CRUD & Visibility)**
-
-* Develop AWS Lambda functions for Product management with soft-delete enforcement.  
-* Apply visibility filters in API queries to ensure USER roles only see ACTIVE records.  
-* Build the Deleted Items recovery interface (ADMIN/SUPERADMIN only).
-
-### **Sprint 3: Weeks 5–6 (Reports & Delivery)**
-
-* Implement Reporting Lambdas (REP\_001 and REP\_002) using PostgreSQL views.  
-* Build the Admin User Management module with **SUPERADMIN** protection logic.  
-* Deploy Astro frontend to AWS (S3/CloudFront) and finalize production environment.
-
 ## **✅ Definition of Done**
 
 * \[ \] No DELETE statements exist in the codebase.  
@@ -65,6 +45,7 @@ The system allows authorized users to manage product records with access dynamic
 * \[ \] Audit stamps are correctly generated for every write action.  
 * \[ \] Live production URL is functional and secure.
 
+---
 **Prepared by:** Boris Gamaliel D. Duque & Yna Solitario
 
 **Instructor:** Jeremias C. Esperanza

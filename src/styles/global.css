@@ -1,0 +1,197 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Font preload (system fallback first, swap to Inter/Sora) ─────────── */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('https://rsms.me/inter/font-files/InterVariable.woff2?v=4.0') format('woff2');
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('https://fonts.gstatic.com/s/sora/v12/xMQOuFFYT72X5wkB_18qmnndmSdSnk-NAQ.woff2') format('woff2');
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html {
+    @apply bg-bg-deep text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+  }
+  body {
+    @apply font-sans selection:bg-brand-500/40 selection:text-white;
+    background:
+      radial-gradient(80% 50% at 50% -10%, rgba(58,91,255,0.18) 0%, rgba(58,91,255,0) 55%),
+      radial-gradient(60% 45% at 90% 10%, rgba(139,92,246,0.16) 0%, rgba(139,92,246,0) 60%),
+      radial-gradient(70% 55% at 0% 80%, rgba(34,211,238,0.10) 0%, rgba(34,211,238,0) 60%),
+      #05070f;
+    min-height: 100vh;
+  }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); background-clip: padding-box; }
+
+  /* Focus ring — visible but on-brand */
+  *:focus-visible {
+    outline: 2px solid theme('colors.brand.400');
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@layer components {
+  /* ─── Glass surface ─────────────────────────────────────────────────── */
+  .glass {
+    @apply relative bg-bg-panel backdrop-blur-xl border border-line shadow-glass rounded-2xl;
+  }
+  .glass-strong {
+    @apply relative bg-bg-surface backdrop-blur-2xl border border-line-strong shadow-glass rounded-2xl;
+  }
+
+  /* ─── Brand gradient text ───────────────────────────────────────────── */
+  .grad-text {
+    @apply bg-brand-grad bg-clip-text text-transparent;
+  }
+
+  /* ─── Pill / chip ───────────────────────────────────────────────────── */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-medium uppercase tracking-wider;
+  }
+  .chip-active { @apply chip bg-accent-mint/10 text-accent-mint ring-1 ring-inset ring-accent-mint/30; }
+  .chip-inactive { @apply chip bg-accent-rose/10 text-accent-rose ring-1 ring-inset ring-accent-rose/30; }
+  .chip-admin { @apply chip bg-accent-violet/10 text-accent-violet ring-1 ring-inset ring-accent-violet/30; }
+  .chip-super { @apply chip bg-accent-amber/10 text-accent-amber ring-1 ring-inset ring-accent-amber/30; }
+  .chip-user { @apply chip bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/30; }
+
+  /* ─── Buttons ───────────────────────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 select-none whitespace-nowrap
+           rounded-xl px-4 py-2.5 text-sm font-medium
+           transition-all duration-200 ease-spring
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn text-white bg-brand-grad shadow-glow
+           hover:brightness-110 hover:-translate-y-px
+           active:translate-y-0 active:brightness-95;
+  }
+  .btn-secondary {
+    @apply btn bg-white/5 text-ink border border-line
+           hover:bg-white/10 hover:border-line-strong;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-ink-muted hover:text-ink hover:bg-white/5;
+  }
+  .btn-danger {
+    @apply btn bg-accent-rose/15 text-accent-rose border border-accent-rose/30
+           hover:bg-accent-rose/25;
+  }
+  .btn-success {
+    @apply btn bg-accent-mint/15 text-accent-mint border border-accent-mint/30
+           hover:bg-accent-mint/25;
+  }
+
+  /* ─── Inputs ────────────────────────────────────────────────────────── */
+  .field {
+    @apply block w-full rounded-xl bg-white/[0.04] border border-line
+           px-4 py-3 text-sm text-ink placeholder:text-ink-dim
+           transition-all duration-200
+           focus:bg-white/[0.06] focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20
+           disabled:opacity-50;
+  }
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-muted;
+  }
+  .field-help {
+    @apply mt-1 text-xs text-ink-dim;
+  }
+  .field-error {
+    @apply mt-1.5 text-xs text-accent-rose;
+  }
+
+  /* ─── Card ──────────────────────────────────────────────────────────── */
+  .card {
+    @apply glass p-6 animate-fade-in;
+  }
+  .card-tight {
+    @apply glass p-4 animate-fade-in;
+  }
+
+  /* ─── Tables ────────────────────────────────────────────────────────── */
+  .data-table {
+    @apply w-full text-left text-sm;
+  }
+  .data-table thead th {
+    @apply px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted
+           border-b border-line bg-white/[0.02];
+  }
+  .data-table tbody td {
+    @apply px-4 py-3 text-ink border-b border-line/50;
+  }
+  .data-table tbody tr {
+    @apply transition-colors hover:bg-white/[0.03];
+  }
+
+  /* ─── Sidebar / Nav ─────────────────────────────────────────────────── */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink-muted
+           transition-all duration-200
+           hover:text-ink hover:bg-white/5;
+  }
+  .nav-item-active {
+    @apply nav-item text-ink bg-white/[0.06] shadow-ring;
+  }
+
+  /* ─── Shimmer skeleton ──────────────────────────────────────────────── */
+  .skeleton {
+    background: linear-gradient(110deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.04) 75%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-md;
+  }
+
+  /* ─── Modal backdrop ────────────────────────────────────────────────── */
+  .modal-backdrop {
+    @apply fixed inset-0 z-40 bg-black/60 backdrop-blur-sm;
+  }
+  .modal-panel {
+    @apply glass-strong fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2
+           w-[min(560px,92vw)] p-7 animate-fade-in;
+  }
+
+  /* ─── Divider with text ─────────────────────────────────────────────── */
+  .divider-text {
+    @apply relative flex items-center text-2xs font-medium uppercase tracking-wider text-ink-dim;
+  }
+  .divider-text::before, .divider-text::after {
+    content: '';
+    @apply flex-1 h-px bg-line;
+  }
+  .divider-text > span { @apply px-3; }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+  .scroll-fade-mask {
+    mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent);
+  }
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

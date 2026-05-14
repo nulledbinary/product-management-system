@@ -1,0 +1,141 @@
+---
+import AppShell from '@layouts/AppShell.astro';
+import ConfirmModal from '@components/ConfirmModal.astro';
+---
+<AppShell title="Manage users" subtitle="ADM_USER · Activate or deactivate accounts." requireRight="ADM_USER">
+  <section class="space-y-6">
+    <div class="card">
+      <div class="flex items-start gap-3">
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-amber/15 text-accent-amber">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 0 0 1.74-3L13.74 4a2 2 0 0 0-3.48 0L3.33 16a2 2 0 0 0 1.74 3z"/></svg>
+        </span>
+        <div>
+          <p class="font-display text-sm font-medium">SUPERADMIN protection is active.</p>
+          <p class="text-sm text-ink-muted">Actions on SUPERADMIN rows are disabled in the UI <strong>and</strong> blocked by the Postgres RLS policy. Both layers are enforced independently.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card !p-0 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Audit stamp</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            {Array.from({ length: 6 }).map(() => (
+              <tr>
+                <td><div class="skeleton h-4 w-48"></div></td>
+                <td><div class="skeleton h-4 w-56"></div></td>
+                <td><div class="skeleton h-4 w-20"></div></td>
+                <td><div class="skeleton h-4 w-20"></div></td>
+                <td><div class="skeleton h-4 w-40"></div></td>
+                <td><div class="skeleton h-4 w-24 ml-auto"></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <ConfirmModal id="user-confirm" title="Confirm" message="" confirmLabel="Confirm" />
+
+  <script type="module">
+    import { listUsers, activateUser, deactivateUser } from '/src/lib/api/users.ts';
+    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+
+    const tbody = document.getElementById('rows');
+    let pending = null;
+
+    function chipFor(type) {
+      if (type === 'SUPERADMIN') return 'chip-super';
+      if (type === 'ADMIN') return 'chip-admin';
+      return 'chip-user';
+    }
+    function statusChip(s) { return s === 'ACTIVE' ? 'chip-active' : 'chip-inactive'; }
+
+    function openModal() {
+      document.querySelector('[data-modal="user-confirm"]').classList.remove('hidden');
+      document.querySelector('[data-modal-backdrop="user-confirm"]').classList.remove('hidden');
+    }
+    function closeModal() {
+      document.querySelector('[data-modal="user-confirm"]').classList.add('hidden');
+      document.querySelector('[data-modal-backdrop="user-confirm"]').classList.add('hidden');
+    }
+    document.querySelectorAll('[data-modal-close]').forEach((b) => b.addEventListener('click', closeModal));
+    document.querySelectorAll('[data-modal-backdrop]').forEach((b) => b.addEventListener('click', closeModal));
+
+    async function refresh() {
+      try {
+        const rows = await listUsers();
+        tbody.innerHTML = rows.map((u) => {
+          const protectedRow = u.user_type === 'SUPERADMIN';
+          const isInactive = u.record_status === 'INACTIVE';
+          const action = isInactive ? 'Activate' : 'Deactivate';
+          return `
+            <tr ${protectedRow ? 'class="bg-accent-amber/[0.03]"' : ''}>
+              <td>
+                <div class="font-medium">${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}</div>
+                <div class="text-xs text-ink-dim">@${escapeHtml(u.username)}</div>
+              </td>
+              <td class="text-sm text-ink-muted">${escapeHtml(u.email ?? '')}</td>
+              <td><span class="${chipFor(u.user_type)}">${escapeHtml(u.user_type)}</span></td>
+              <td><span class="${statusChip(u.record_status)}">${escapeHtml(u.record_status)}</span></td>
+              <td class="text-xs text-ink-dim font-mono">${escapeHtml(u.stamp ?? '')}</td>
+              <td class="text-right">
+                <button
+                  class="btn-secondary h-8 px-3 text-xs"
+                  ${protectedRow ? 'disabled' : ''}
+                  title="${protectedRow ? 'SUPERADMIN accounts cannot be modified' : ''}"
+                  data-action="${escapeHtml(action.toLowerCase())}"
+                  data-user="${escapeHtml(u.userId)}"
+                  data-label="${escapeHtml(u.username)}">
+                  ${escapeHtml(action)}
+                </button>
+              </td>
+            </tr>`;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed.')}</td></tr>`;
+      }
+    }
+
+    tbody.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-action][data-user]');
+      if (!t || t.disabled) return;
+      pending = { action: t.getAttribute('data-action'), userId: t.getAttribute('data-user') };
+      const label = t.getAttribute('data-label');
+      const titleEl = document.querySelector('#user-confirm [id$="-title"]');
+      const msgEl = document.querySelector('#user-confirm [data-confirm-message]');
+      const okBtn = document.querySelector('[data-confirm="user-confirm"]');
+      titleEl.textContent = pending.action === 'activate' ? 'Activate account?' : 'Deactivate account?';
+      msgEl.textContent = `${pending.action === 'activate' ? 'Activate' : 'Deactivate'} @${label}? This is a reversible record_status update — never a delete.`;
+      okBtn.textContent = pending.action === 'activate' ? 'Activate' : 'Deactivate';
+      okBtn.classList.toggle('btn-danger', pending.action === 'deactivate');
+      okBtn.classList.toggle('btn-primary', pending.action === 'activate');
+      openModal();
+    });
+
+    document.querySelector('[data-confirm="user-confirm"]')?.addEventListener('click', async () => {
+      if (!pending) return;
+      try {
+        if (pending.action === 'activate') await activateUser(pending.userId);
+        else await deactivateUser(pending.userId);
+        closeModal();
+        await refresh();
+      } catch (e) {
+        alert(e?.message ?? 'Action failed.');
+      }
+    });
+
+    refresh();
+  </script>
+</AppShell>

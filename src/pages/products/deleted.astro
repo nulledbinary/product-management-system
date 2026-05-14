@@ -1,0 +1,109 @@
+---
+import AppShell from '@layouts/AppShell.astro';
+import ConfirmModal from '@components/ConfirmModal.astro';
+---
+<AppShell title="Deleted items" subtitle="Soft-deleted products. Recover at any time." requireAdmin>
+  <section class="space-y-6">
+    <div class="card">
+      <p class="text-sm text-ink-muted">
+        These products have <code class="rounded bg-white/5 px-1.5 py-0.5 text-xs">record_status = 'INACTIVE'</code>
+        and are invisible to standard USER accounts. They were never deleted from the database.
+      </p>
+    </div>
+
+    <div class="card !p-0 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Description</th>
+              <th>Unit</th>
+              <th>Soft-deleted at</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            {Array.from({ length: 4 }).map(() => (
+              <tr>
+                <td><div class="skeleton h-4 w-16"></div></td>
+                <td><div class="skeleton h-4 w-48"></div></td>
+                <td><div class="skeleton h-4 w-10"></div></td>
+                <td><div class="skeleton h-4 w-40"></div></td>
+                <td><div class="skeleton h-4 w-24 ml-auto"></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="hidden p-12 text-center">
+        <p class="font-display text-base font-medium">Nothing in the bin</p>
+        <p class="text-sm text-ink-dim">There are no soft-deleted products right now.</p>
+      </div>
+    </div>
+  </section>
+
+  <ConfirmModal id="recover-modal"
+                title="Recover this product?"
+                message="This sets record_status back to ACTIVE. The product reappears in all users' views immediately."
+                confirmLabel="Recover"
+                variant="primary" />
+
+  <script type="module">
+    import { listProducts, recoverProduct } from '/src/lib/api/products.ts';
+    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+
+    const tbody = document.getElementById('rows');
+    const empty = document.getElementById('empty-state');
+    let pending = null;
+
+    function openModal(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.remove('hidden');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.remove('hidden');
+    }
+    function closeModal(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.add('hidden');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.add('hidden');
+    }
+    document.querySelectorAll('[data-modal-close]').forEach((b) =>
+      b.addEventListener('click', () => closeModal(b.getAttribute('data-modal-close'))));
+    document.querySelectorAll('[data-modal-backdrop]').forEach((b) =>
+      b.addEventListener('click', () => closeModal(b.getAttribute('data-modal-backdrop'))));
+
+    async function refresh() {
+      const list = (await listProducts({ includeInactive: true }))
+        .filter((p) => p.record_status === 'INACTIVE');
+      if (!list.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      tbody.innerHTML = list.map((p) => `
+        <tr>
+          <td class="font-mono text-xs">${escapeHtml(p.prodCode)}</td>
+          <td>${escapeHtml(p.description)}</td>
+          <td><span class="chip-user">${escapeHtml(p.unit)}</span></td>
+          <td class="text-xs text-ink-dim font-mono">${escapeHtml(p.stamp ?? '')}</td>
+          <td class="text-right">
+            <button class="btn-success h-8 px-3 text-xs" data-recover="${escapeHtml(p.prodCode)}">Recover</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    tbody.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-recover]');
+      if (!t) return;
+      pending = t.getAttribute('data-recover');
+      const m = document.querySelector('#recover-modal [data-confirm-message]');
+      m.textContent = `Recover product ${pending}? It will reappear for all users.`;
+      openModal('recover-modal');
+    });
+
+    document.querySelector('[data-confirm="recover-modal"]')?.addEventListener('click', async () => {
+      if (!pending) return;
+      try { await recoverProduct(pending); closeModal('recover-modal'); await refresh(); }
+      catch (e) { alert(e?.message ?? 'Could not recover.'); }
+    });
+
+    refresh().catch((e) => {
+      tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed.')}</td></tr>`;
+    });
+  </script>
+</AppShell>
