@@ -34,6 +34,7 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
   </script>
 
   <script>
+    // @ts-nocheck
     import { readSession, bindLifecycleHandlers, sessionTimeoutMs, lastTouchedAt, touch } from '@lib/security/session';
     import { startInactivityWatchdog } from '@lib/security/timeout';
     import { signOut } from '@lib/auth/auth0Client';

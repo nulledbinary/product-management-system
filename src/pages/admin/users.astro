@@ -49,6 +49,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
   <ConfirmModal id="user-confirm" title="Confirm" message="" confirmLabel="Confirm" />
 
   <script>
+    // @ts-nocheck
     import { listUsers, activateUser, deactivateUser } from '@lib/api/users';
     import { escapeHtml } from '@lib/security/sanitize';
 

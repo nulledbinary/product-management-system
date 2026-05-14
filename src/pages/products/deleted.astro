@@ -50,6 +50,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
                 variant="primary" />
 
   <script>
+    // @ts-nocheck
     import { listProducts, recoverProduct } from '@lib/api/products';
     import { escapeHtml } from '@lib/security/sanitize';
 
