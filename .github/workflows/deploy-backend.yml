@@ -1,0 +1,102 @@
+name: deploy-backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+
+concurrency:
+  group: ecs-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write        # OIDC — no static AWS keys
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: hopepms/backend
+  ECS_CLUSTER: hopepms-prod
+  ECS_SERVICE: hopepms-backend
+  ECS_TASK_FAMILY: hopepms-backend
+  CONTAINER_NAME: spring-boot-api
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configure AWS credentials (OIDC, least-privilege role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-ecs-deployer
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Compute image tag (commit SHA + run number)
+        id: tag
+        run: |
+          SHORT_SHA="${GITHUB_SHA::12}"
+          echo "image_tag=${SHORT_SHA}-${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "image_uri=${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${SHORT_SHA}-${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push Docker image
+        working-directory: backend
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --provenance=false \
+            --tag "${{ steps.tag.outputs.image_uri }}" \
+            --tag "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest" \
+            --push \
+            .
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_FAMILY }} \
+            --query taskDefinition > task-def.json
+
+      - name: Render new task definition with image
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.tag.outputs.image_uri }}
+
+      - name: Deploy to ECS (rolling update, wait for stable)
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes: 15
+
+      - name: Tag deployment in Git
+        if: success()
+        run: |
+          gh api -X POST /repos/${{ github.repository }}/git/refs \
+            -f ref="refs/tags/deploy/backend/${{ steps.tag.outputs.image_tag }}" \
+            -f sha="${{ github.sha }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
