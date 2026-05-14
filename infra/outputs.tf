@@ -1,36 +1,20 @@
 # ═══════════════════════════════════════════════════════════════════════════
 #  Outputs you'll need after `terraform apply`:
-#    - The Amplify domain → feeds Auth0 Allowed Callback / Logout URLs and
-#      the env vars on the ECS task.
+#    - The CloudFront domain → paste into the Amplify rewrite rule.
 #    - The ECR registry URI + repo name → for the GitHub Actions workflow.
-#    - The GitHub OIDC role ARN → set as a GitHub secret.
+#    - The GitHub OIDC role ARN → save as a GitHub Actions secret.
 #    - The ECS cluster + service names → also referenced by the workflow.
-#    - The CloudFront domain → for debugging only; users never hit it directly.
 #    - The RDS endpoint → for bastion / psql access during bootstrap.
+#  Note: Amplify is created manually in the AWS console (not by Terraform).
 # ═══════════════════════════════════════════════════════════════════════════
 
-output "amplify_app_id" {
-  description = "Amplify App ID — used to connect the GitHub repo in the console."
-  value       = aws_amplify_app.frontend.id
-}
-
-output "amplify_default_domain" {
-  description = "Amplify-assigned domain. The frontend lives at https://<branch>.<this>."
-  value       = aws_amplify_app.frontend.default_domain
-}
-
-output "amplify_branch_url" {
-  description = "Full public URL of the deployed branch."
-  value       = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}"
-}
-
 output "cloudfront_api_domain" {
-  description = "CloudFront distribution fronting the ALB. Amplify rewrites /api/* here."
+  description = "CloudFront distribution fronting the ALB. Use this as the target of the Amplify /api/* rewrite rule."
   value       = aws_cloudfront_distribution.api.domain_name
 }
 
 output "alb_dns_name" {
-  description = "Internal ALB DNS — direct access returns 403 (CloudFront-only)."
+  description = "ALB DNS — direct access returns 403 (CloudFront-only). For debugging."
   value       = aws_lb.backend.dns_name
 }
 
@@ -60,7 +44,7 @@ output "ecs_task_family" {
 }
 
 output "github_actions_deployer_role_arn" {
-  description = "OIDC role for GitHub Actions. Set this on the workflow side; the workflow's AWS_ACCOUNT_ID secret derives from it."
+  description = "OIDC role ARN for GitHub Actions. Used by the workflow when assuming AWS credentials."
   value       = aws_iam_role.github_deployer.arn
 }
 
@@ -90,17 +74,28 @@ output "secret_db_arn" {
 }
 
 output "secret_auth0_arn" {
-  description = "Secrets Manager ARN for Auth0 credentials. UPDATE THIS after creating the Auth0 application."
+  description = "Secrets Manager ARN for Auth0 credentials. Update with the real client secret after creating the Auth0 application."
   value       = aws_secretsmanager_secret.auth0.arn
 }
 
-output "auth0_setup_hint" {
-  description = "Paste these into the Auth0 application settings."
+output "amplify_setup_instructions" {
+  description = "Step-by-step for the Amplify console after `terraform apply` succeeds."
+  value = {
+    step_1_create_app   = "AWS Console → Amplify → Host a web app → GitHub → authorize Amplify GitHub App"
+    step_2_repo_branch  = "Pick repo + branch — Amplify auto-detects amplify.yml from the repo root"
+    step_3_env_var      = "App settings → Environment variables → PUBLIC_API_BASE_URL = /api"
+    step_4_rewrite_rule = "App settings → Rewrites and redirects → Source: /api/<*> · Target: https://${aws_cloudfront_distribution.api.domain_name}/api/<*> · Status: 200 (Rewrite)"
+    step_5_capture_url  = "After first build succeeds, copy the assigned URL (https://<branch>.<id>.amplifyapp.com) into terraform.tfvars as `amplify_origin`, then re-run terraform apply"
+  }
+}
+
+output "auth0_setup_instructions" {
+  description = "Paste these into Auth0 after step 5 above — but substitute `<amplify-url>` with the URL you got from Amplify."
   value = {
     application_type    = "Regular Web Application"
-    callback_url        = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}/api/auth/callback"
-    logout_url          = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}/login"
-    allowed_web_origin  = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}"
+    callback_url        = "<amplify-url>/api/auth/callback"
+    logout_url          = "<amplify-url>/login"
+    allowed_web_origin  = "<amplify-url>"
     audience            = var.auth0_audience
     after_setup_command = "aws secretsmanager update-secret --region ${var.aws_region} --secret-id ${aws_secretsmanager_secret.auth0.name} --secret-string '{\"AUTH0_CLIENT_SECRET\":\"<paste-from-auth0>\"}'"
   }

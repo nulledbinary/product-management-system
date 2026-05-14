@@ -36,7 +36,11 @@ resource "aws_ecs_cluster_capacity_providers" "fargate" {
 locals {
   bootstrap_image = "public.ecr.aws/amazonlinux/amazonlinux:2023"
 
-  amplify_origin = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}"
+  # Amplify is created manually in the console. After the first build, copy
+  # the assigned URL (e.g. https://main.dXXXXXXXXX.amplifyapp.com) into
+  # `amplify_origin` in terraform.tfvars, then run `terraform apply` again
+  # to refresh these env vars on the ECS task.
+  amplify_origin = var.amplify_origin
 
   container_env = [
     { name = "DB_USER",                value = var.db_username },

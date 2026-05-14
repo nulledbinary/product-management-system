@@ -125,10 +125,17 @@ variable "auth0_audience" {
 
 variable "auth0_client_secret_placeholder" {
   description = "Initial value seeded into Secrets Manager. Rotate via `aws secretsmanager update-secret` once the Auth0 application exists; lifecycle.ignore_changes keeps Terraform from overwriting it."
-# ─── Auth0 placeholder (real value set in Secrets Manager after Auth0 setup) ─
-variable "auth0_client_secret_placeholder" {
-  description = "Placeholder secret used at first apply. Update Secrets Manager once Auth0 is configured."
   type        = string
   default     = "REPLACE-ME-AFTER-AUTH0-SETUP"
   sensitive   = true
+}
+
+# ─── Amplify (created manually in the AWS console) ────────────────────────
+# Fill this in AFTER you create the Amplify app and copy its assigned URL.
+# First-time apply can use the placeholder default; once you have the real
+# URL, set it in terraform.tfvars and re-apply to refresh the ECS env vars.
+variable "amplify_origin" {
+  description = "Public URL of the manually-created Amplify app (e.g. https://main.dXXXXXXXXX.amplifyapp.com). Powers CORS, redirect URI, and logout URL on the backend."
+  type        = string
+  default     = "https://placeholder.amplifyapp.com"
 }

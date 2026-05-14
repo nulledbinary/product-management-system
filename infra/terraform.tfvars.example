@@ -1,8 +1,18 @@
 # Required: GitHub repo coordinates so the OIDC deployer role trusts the right workflow.
-github_org  = "your-github-org-or-username"
-github_repo = "productmanagement"
+github_org  = "nulledbinary"
+github_repo = "product-management-system"
 
-# Optional overrides — defaults are tuned for the production-grade tier.
+# ─── Auth0 (public values — non-secret) ───────────────────────────────────
+auth0_domain    = "dev-scd4z6dh605im0ve.jp.auth0.com"
+auth0_client_id = "CgoBJ2KV4aMLWaMj3k5TFyrxVHfqn1jZ"
+auth0_audience  = "https://dev-scd4z6dh605im0ve.jp.auth0.com/api/v2/"
+
+# ─── Amplify (set after you create the Amplify app in the console) ────────
+# Leave the default for the first apply; paste the real URL here and re-run
+# `terraform apply` once Amplify has assigned one.
+# amplify_origin = "https://main.dXXXXXXXXX.amplifyapp.com"
+
+# ─── Optional overrides (defaults are production-grade) ───────────────────
 # aws_region              = "ap-southeast-1"
 # environment             = "prod"
 # db_instance_class       = "db.t4g.micro"
