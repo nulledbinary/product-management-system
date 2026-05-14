@@ -65,7 +65,6 @@ jobs:
             --cache-to type=gha,mode=max \
             --provenance=false \
             --tag "${{ steps.tag.outputs.image_uri }}" \
-            --tag "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest" \
             --push \
             .
 
