@@ -14,7 +14,7 @@ output "cloudfront_api_domain" {
 }
 
 output "alb_dns_name" {
-  description = "ALB DNS — direct access returns 403 (CloudFront-only). For debugging."
+  description = "Internal ALB DNS — direct access returns 403 (CloudFront-only)."
   value       = aws_lb.backend.dns_name
 }
 
@@ -44,7 +44,7 @@ output "ecs_task_family" {
 }
 
 output "github_actions_deployer_role_arn" {
-  description = "OIDC role ARN for GitHub Actions. Used by the workflow when assuming AWS credentials."
+  description = "OIDC role for GitHub Actions. Set this on the workflow side; the workflow's AWS_ACCOUNT_ID secret derives from it."
   value       = aws_iam_role.github_deployer.arn
 }
 
@@ -74,28 +74,17 @@ output "secret_db_arn" {
 }
 
 output "secret_auth0_arn" {
-  description = "Secrets Manager ARN for Auth0 credentials. Update with the real client secret after creating the Auth0 application."
+  description = "Secrets Manager ARN for Auth0 credentials. UPDATE THIS after creating the Auth0 application."
   value       = aws_secretsmanager_secret.auth0.arn
 }
 
-output "amplify_setup_instructions" {
-  description = "Step-by-step for the Amplify console after `terraform apply` succeeds."
-  value = {
-    step_1_create_app   = "AWS Console → Amplify → Host a web app → GitHub → authorize Amplify GitHub App"
-    step_2_repo_branch  = "Pick repo + branch — Amplify auto-detects amplify.yml from the repo root"
-    step_3_env_var      = "App settings → Environment variables → PUBLIC_API_BASE_URL = /api"
-    step_4_rewrite_rule = "App settings → Rewrites and redirects → Source: /api/<*> · Target: https://${aws_cloudfront_distribution.api.domain_name}/api/<*> · Status: 200 (Rewrite)"
-    step_5_capture_url  = "After first build succeeds, copy the assigned URL (https://<branch>.<id>.amplifyapp.com) into terraform.tfvars as `amplify_origin`, then re-run terraform apply"
-  }
-}
-
-output "auth0_setup_instructions" {
-  description = "Paste these into Auth0 after step 5 above — but substitute `<amplify-url>` with the URL you got from Amplify."
+output "auth0_setup_hint" {
+  description = "Paste these into the Auth0 application settings."
   value = {
     application_type    = "Regular Web Application"
-    callback_url        = "<amplify-url>/api/auth/callback"
-    logout_url          = "<amplify-url>/login"
-    allowed_web_origin  = "<amplify-url>"
+    callback_url        = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}/api/auth/callback"
+    logout_url          = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}/login"
+    allowed_web_origin  = "https://${aws_amplify_branch.main.branch_name}.${aws_amplify_app.frontend.default_domain}"
     audience            = var.auth0_audience
     after_setup_command = "aws secretsmanager update-secret --region ${var.aws_region} --secret-id ${aws_secretsmanager_secret.auth0.name} --secret-string '{\"AUTH0_CLIENT_SECRET\":\"<paste-from-auth0>\"}'"
   }
