@@ -19,14 +19,14 @@ export async function listUsers() {
 export async function activateUser(userId: string) {
   matchOrThrow(userId, /^[A-Za-z0-9|_-]{1,64}$/, 'userId');
   return request<{ ok: true }>(`/admin/users/${encodeURIComponent(userId)}/activate`, {
-    method: 'PATCH',
+    method: 'POST',
   });
 }
 
 export async function deactivateUser(userId: string) {
   matchOrThrow(userId, /^[A-Za-z0-9|_-]{1,64}$/, 'userId');
   return request<{ ok: true }>(`/admin/users/${encodeURIComponent(userId)}/deactivate`, {
-    method: 'PATCH',
+    method: 'POST',
   });
 }
 

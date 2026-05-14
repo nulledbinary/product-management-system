@@ -7,13 +7,12 @@
       "@components/*": ["src/components/*"],
       "@layouts/*": ["src/layouts/*"],
       "@lib/*": ["src/lib/*"],
-      "@styles/*": ["src/styles/*"],
-      "@server/*": ["server/*"]
+      "@styles/*": ["src/styles/*"]
     },
     "types": ["astro/client", "node"],
     "verbatimModuleSyntax": false,
     "allowImportingTsExtensions": false
   },
-  "include": ["src/**/*", "server/**/*", "astro.config.mjs"],
-  "exclude": ["dist", "node_modules", ".astro"]
+  "include": ["src/**/*", "astro.config.mjs"],
+  "exclude": ["dist", "node_modules", ".astro", "backend"]
 }

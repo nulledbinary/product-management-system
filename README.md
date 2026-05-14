@@ -1,181 +1,163 @@
-# HopePMS — Astro & AWS Cloud-Native Edition
+# HopePMS — Astro (Amplify) + Spring Boot (ECS) Edition
 
 Hope, Inc. Product Management System (HopePMS). A secure, role-aware product
 management web app for the HopeDB schema.
 
-> Stack: **Astro 4 (SSR · Node adapter) · Tailwind CSS · Auth0 SPA · AWS Lambda · API Gateway · RDS PostgreSQL**
+> **Stack:** Astro 4 (SSR · Node adapter) · Tailwind CSS · Nano Stores · Auth0
+> (Authorization Code + PKCE, server-side) · Spring Boot 3.4 / Java 21 ·
+> Amazon ECS · ElastiCache for Redis · Amazon RDS PostgreSQL · AWS Amplify
 
 ---
 
-## Why this is structured this way
+## Architecture at a glance
 
-This codebase implements [PROJECT_PLAN.md](./PROJECT_PLAN.md) — Astro + AWS
-edition. The business rules (no-hard-delete, soft-delete visibility,
-SUPERADMIN protection, audit stamps, rights matrix) come from the original
-HopePMS guide. Everything is enforced **in two places**: the UI for UX, and
-the Lambda+SQL layer for security.
-
-### Project layout
-
+```text
+                ┌─────────────────────────────────────┐
+                │     AWS Amplify (Astro SSR)         │
+                │  hopepms.example.com                │
+                │  · Service-catalog UI               │
+                │  · Volatile session atom (Nano)     │
+                │  · No client-readable tokens        │
+                └──────────────┬──────────────────────┘
+                               │ HttpOnly cookie (HPMS_SID)
+                               ▼
+                ┌─────────────────────────────────────┐
+                │  Amazon ECS — Spring Boot API       │
+                │  api.hopepms.example.com            │
+                │  · /api/auth/* (PKCE handshake)     │
+                │  · /api/products/* /admin/* /reports│
+                │  · @RequiresRight enforcement       │
+                └────────┬───────────────────┬────────┘
+                         │                   │
+                ┌────────▼──────┐   ┌────────▼──────────┐
+                │  ElastiCache  │   │  Amazon RDS PG    │
+                │  for Redis    │   │  hopedb schema    │
+                │  · session    │   │  · soft-delete    │
+                │    records    │   │    triggers       │
+                │  · PKCE state │   │  · SUPERADMIN     │
+                └───────────────┘   │    protection     │
+                                    └───────────────────┘
+                                                ▲
+                                                │ Authorization Code + PKCE
+                                                │
+                                       ┌────────┴────────┐
+                                       │     Auth0       │
+                                       │  · Email + pwd  │
+                                       │  · Google OAuth │
+                                       └─────────────────┘
 ```
+
+## Repository layout
+
+```text
 .
-├── astro.config.mjs            # Astro SSR config (Node adapter)
-├── tailwind.config.mjs         # Design tokens — gradient mesh, glassmorphism
-├── tsconfig.json               # @/, @components/, @lib/, @server/ path aliases
-├── .env.example                # Copy to .env and fill in
-├── public/                     # Static assets (favicon, Google icon)
-└── src/
-    ├── layouts/
-    │   ├── BaseLayout.astro    # <html> shell, hero gradient mesh background
-    │   └── AppShell.astro      # Authenticated shell — guards, sidebar, top bar, timer
-    ├── components/
-    │   ├── Sidebar.astro       # Rights-gated nav
-    │   ├── TopBar.astro        # Title + idle timer chip
-    │   ├── ProductFormModal.astro
-    │   ├── ConfirmModal.astro
-    │   └── ui/Logo.astro
-    ├── pages/
-    │   ├── index.astro         # → /products
-    │   ├── login.astro         # Email + Google OAuth (Auth0 Universal Login)
-    │   ├── register.astro
-    │   ├── auth/callback.astro
-    │   ├── products/
-    │   │   ├── index.astro     # Active list + CRUD + price history drawer
-    │   │   └── deleted.astro   # Admin-only recovery panel
-    │   ├── reports/
-    │   │   ├── product-listing.astro
-    │   │   └── top-selling.astro
-    │   ├── admin/users.astro   # SUPERADMIN-protected user management
-    │   └── api/[...route].ts   # Dev-time proxy → Lambda handlers
-    ├── styles/global.css       # Tailwind layers + components (.btn-*, .field, .glass, …)
-    └── lib/
-        ├── security/           # ⚠️ critical — see “Security model” below
-        │   ├── crypto.ts       # AES-GCM, HKDF, per-tab ephemeral salt
-        │   ├── session.ts      # Encrypted sessionStorage vault
-        │   ├── timeout.ts      # Inactivity watchdog
-        │   ├── pathGuard.ts    # ../../../ blocklist + structured whitelists
-        │   ├── sanitize.ts     # HTML/URL output encoding
-        │   └── index.ts
-        ├── auth/
-        │   ├── auth0Client.ts  # SPA client (cacheLocation: 'memory')
-        │   └── rights.ts       # useRights / isAdmin / canSeeStamp
-        ├── api/
-        │   ├── client.ts       # Authenticated fetch wrapper
-        │   ├── products.ts
-        │   └── users.ts
-        └── utils/stamp.ts      # 'ACTION userId YYYY-MM-DD HH:MM'
-
-server/                         # ← Deployed as AWS Lambda
-├── tsconfig.json
-├── lib/
-│   ├── auth.ts                 # Auth0 JWT verifier (RS256, JWKS cache)
-│   ├── http.ts                 # API Gateway response helpers + CORS lock
-│   ├── sanitize.ts             # Server mirror of pathGuard
-│   ├── stamp.ts
-│   └── rights.ts
-├── db/
-│   ├── pool.ts                 # pg pool, parameterised query helper, withTx
-│   ├── schema.sql              # Full HopeDB DDL + HopePMS additions + triggers + views
-│   ├── seed-hopedb.sql         # Original HopeDB business data (HopeDB (3).sql)
-│   └── seed-superadmin.sql     # SUPERADMIN seed (auth0|REPLACE_ME)
-└── handlers/
-    ├── me.ts                   # GET /api/me — JIT provisioning + 403 not_activated
-    ├── products.ts             # CRUD + soft delete + price history
-    ├── admin-users.ts          # Activate / deactivate (SUPERADMIN-protected)
-    └── reports.ts              # REP_001 / REP_002
+├── amplify.yml                         # Amplify build pipeline (Astro SSR)
+├── .github/workflows/deploy-backend.yml # OIDC → ECR → ECS rolling deploy
+├── astro.config.mjs / tailwind.config.mjs / tsconfig.json
+├── PROJECT_PLAN.md / HopePMS_Project_Guide_CS.docx.pdf / HopeDB (3).sql
+├── public/                              # Static assets
+├── src/                                 # Astro frontend (this directory)
+│   ├── layouts/  AppShell · BaseLayout
+│   ├── components/  Sidebar · TopBar · ProductFormModal · ConfirmModal · ui/Logo
+│   ├── pages/    index · login · register · products/* · reports/* · admin/users
+│   └── lib/
+│       ├── auth/        volatileSession.ts · rights.ts
+│       ├── security/    pathGuard.ts · sanitize.ts
+│       ├── api/         client.ts · products.ts · users.ts
+│       └── utils/       stamp.ts
+└── backend/                             # Spring Boot 3.4 on Amazon ECS
+    ├── Dockerfile · pom.xml · mvnw
+    └── src/main
+        ├── java/com/hopepms
+        │   ├── HopePmsApplication.java
+        │   ├── config/      SecurityConfig · WebConfig · HopePmsProperties
+        │   ├── security/    VolatileSessionFilter · VolatileSessionStore
+        │   │                 RequiresRight + Aspect · HopePrincipal
+        │   ├── auth/        Auth0Service · AuthController · ProvisioningService
+        │   ├── domain/
+        │   │   ├── products/    ProductController · PriceHistController · Repository
+        │   │   ├── reports/     REP_001 / REP_002
+        │   │   └── users/       AdminUsersController
+        │   └── util/        StampHelper · ApiException · GlobalExceptionHandler
+        └── resources
+            ├── application.yml
+            └── db/migration/    V1…V5 — schema · rights · triggers · seed
 ```
 
 ---
 
-## 🔒 Security model
+## Security model
 
-### 1. Encrypted, ephemeral session storage
+### 1. Volatile, ephemeral sessions (ADR-001)
 
-- We use **sessionStorage** — auto-cleared by the browser when the tab closes.
-- Every value is wrapped with **AES-256-GCM**. The key is derived via HKDF
-  from `PUBLIC_SESSION_PEPPER` (build-time) + a **per-tab ephemeral salt**
-  that lives only in JS memory ([src/lib/security/crypto.ts](src/lib/security/crypto.ts)).
-- Refresh tokens never touch disk: Auth0 SPA SDK is configured with
-  `cacheLocation: 'memory'` ([src/lib/auth/auth0Client.ts](src/lib/auth/auth0Client.ts:30)).
-- The vault is wiped on `beforeunload`, `pagehide`, sign-out, and inactivity
-  timeout. The watchdog is in [src/lib/security/timeout.ts](src/lib/security/timeout.ts).
+- No `localStorage`, `sessionStorage`, IndexedDB, or client-readable cookies.
+- Server mints a 256-bit opaque session id, stored in Redis with a TTL.
+- Cookie is `HttpOnly; Secure; SameSite=Strict`, **no `Max-Age` / `Expires`** —
+  the browser drops it when the tab closes.
+- Client identity lives in a Nano Stores `atom` (plain JS heap, gone on refresh).
+- `beforeunload`, `pagehide`, and `visibilitychange(hidden)` POST to
+  `/api/auth/invalidate` via `navigator.sendBeacon` so Redis is cleaned up
+  immediately; the server-side TTL is the safety net.
+- **SUPERADMIN TTL = 8 minutes, no sliding.** USER/ADMIN = 30 minutes,
+  sliding on each request.
 
-### 2. Path-traversal prevention (`../../../`)
+### 2. No DELETE — anywhere
 
-- A shared blocklist rejects `..`, URL-encoded `%2e%2e`, double-encoded
-  `%252e%252e`, `..`, null bytes, and other C0 controls
-  ([src/lib/security/pathGuard.ts](src/lib/security/pathGuard.ts)).
-- Structured fields (`prodCode`, `username`, `email`, …) go through strict
-  **whitelist regexes** before they touch the network.
-- The exact same checks live in
-  [server/lib/sanitize.ts](server/lib/sanitize.ts) — the Lambda layer never
-  trusts the browser's validation. Every handler runs `assertSafeString` on
-  the request path before pattern-matching it.
-- The API client refuses to build a URL whose path contains traversal
-  ([src/lib/api/client.ts:18](src/lib/api/client.ts#L18)).
+- The application code never issues `DELETE`. Soft-delete is `UPDATE … SET
+  record_status='INACTIVE'`.
+- The Postgres trigger `reject_hard_delete()` (migration V3) raises on any
+  `DELETE` against `product`, `priceHist`, or `user` — belt and braces.
 
-### 3. No DELETE anywhere
+### 3. SUPERADMIN protection at three layers
 
-- All removals set `record_status = 'INACTIVE'` via PATCH.
-- A Postgres trigger (`trg_no_delete_*`) **raises** on any DELETE attempt
-  ([server/db/schema.sql](server/db/schema.sql)).
+1. UI: action buttons disabled on SUPERADMIN rows with tooltip.
+2. API: `AdminUsersController.setStatus` 403s if target is SUPERADMIN and
+   caller isn't.
+3. DB: `enforce_superadmin_protection()` trigger reads `hopepms.caller_userid`
+   (set via `set_config()` in the same transaction) and refuses any
+   non-SUPERADMIN write against a SUPERADMIN row.
 
-### 4. SUPERADMIN protection
+### 4. Audit stamps
 
-Enforced at three layers:
-
-1. UI buttons are disabled with a tooltip on SUPERADMIN rows
-   ([src/pages/admin/users.astro](src/pages/admin/users.astro)).
-2. The Lambda handler 403s if the target is SUPERADMIN and the caller is not
-   ([server/handlers/admin-users.ts:53](server/handlers/admin-users.ts#L53)).
-3. The Postgres trigger `enforce_superadmin_protection` re-checks using
-   the `hopepms.caller_userid` GUC the handler sets per transaction.
-
-### 5. Audit stamps
-
-Format `ACTION userId YYYY-MM-DD HH:MM`. Generated by the handler, never the
-client. Hidden from USER accounts in both API responses and UI.
+Format `ACTION userId YYYY-MM-DD HH:MM`, generated server-side by
+`StampHelper.make()`. Hidden from USER accounts in both API responses
+(`ProductController.sanitize`) and UI (`canSeeStamp`).
 
 ---
 
 ## Getting started
 
+### Frontend
+
 ```bash
-# 1. Install
+cp .env.example .env             # fill in PUBLIC_API_BASE_URL
 npm install
-
-# 2. Configure
-cp .env.example .env
-#    Fill in Auth0, RDS, and session pepper values.
-#    Auth0 setup walkthrough: docs/AUTH0_SETUP.md
-#    Generate the pepper:
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# 3. Provision the database — load in this order:
-psql "$DATABASE_URL" -f server/db/schema.sql           # schema + triggers + views + rights catalog
-psql "$DATABASE_URL" -f server/db/seed-hopedb.sql      # original HopeDB business data (HopeDB (3).sql)
-psql "$DATABASE_URL" -f server/db/seed-superadmin.sql  # SUPERADMIN row (edit 'auth0|REPLACE_ME' first)
-
-# 4. Run dev server (Astro + Lambda proxy on :4321)
-npm run dev
+npm run dev                      # http://localhost:4321
 ```
 
-> The HopeDB seed file mirrors `HopeDB (3).sql` from the instructor's reference,
-> with the `record_status` / `stamp` columns added by HopePMS populated to
-> sensible defaults (`ACTIVE` / `IMPORTED system <date>`). It includes
-> employees, departments, jobs, customers, sales, salesDetail, products,
-> payments, and priceHist.
+### Backend
 
-`npm run dev` mounts the Lambda handlers behind `/api/*` via
-[src/pages/api/[...route].ts](src/pages/api/%5B...route%5D.ts) so the same
-handler code that ships to AWS runs locally.
+```bash
+# Start Postgres + Redis locally
+docker run -d --name pg    -p 5432:5432 \
+  -e POSTGRES_DB=hopedb -e POSTGRES_USER=hopepms -e POSTGRES_PASSWORD=hopepms postgres:16
+docker run -d --name redis -p 6379:6379 redis:7-alpine
 
-For production:
+cd backend
+export $(grep -v '^#' ../.env | xargs)
+export SESSION_COOKIE_SECURE=false       # local HTTP only
+./mvnw spring-boot:run                   # http://localhost:8080
+```
 
-- Front-end → AWS Amplify (Astro Node adapter)
-- API → API Gateway HTTP API → individual Lambdas per route group
-  (`me`, `products`, `admin-users`, `reports`)
-- DB → RDS PostgreSQL with SSL required
+Flyway migrations run automatically on first boot and create the `hopedb`
+schema, seed the modules/rights catalog, and place a SUPERADMIN placeholder
+keyed on `jcesperanza@neu.edu.ph` (see V5). When that user first signs in,
+`ProvisioningService` re-keys the row onto the real Auth0 `sub`.
+
+For dev, the frontend at `:4321` needs to reach the API at `:8080`. The
+simplest path is an Astro dev-server proxy in `astro.config.mjs` or use
+Amplify's local emulator; in production, both are served from the same parent
+domain (`hopepms.example.com` and `api.hopepms.example.com`).
 
 ---
 
@@ -183,27 +165,43 @@ For production:
 
 | Page                            | Right needed | Notes                                                |
 |---------------------------------|--------------|------------------------------------------------------|
-| `/products`                      | (any active) | USER sees ACTIVE only · stamp hidden                 |
-| `/products` Add button           | `PRD_ADD`    |                                                      |
-| `/products` Edit button          | `PRD_EDIT`   |                                                      |
-| `/products` Delete button        | `PRD_DEL`    | Soft delete only                                     |
-| `/products/deleted`              | ADMIN+       | Recovery panel                                        |
-| `/reports/product-listing`       | `REP_001`    |                                                      |
-| `/reports/top-selling`           | `REP_002`    | SUPERADMIN only per the rights matrix                |
-| `/admin/users`                   | `ADM_USER`   | SUPERADMIN rows always read-only for ADMIN callers   |
+| `/products`                     | (any active) | USER sees ACTIVE only · stamp hidden                 |
+| `/products` Add button          | `PRD_ADD`    |                                                      |
+| `/products` Edit button         | `PRD_EDIT`   |                                                      |
+| `/products` Delete button       | `PRD_DEL`    | Soft delete only                                     |
+| `/products/deleted`             | ADMIN+       | Recovery panel                                       |
+| `/reports/product-listing`      | `REP_001`    |                                                      |
+| `/reports/top-selling`          | `REP_002`    | SUPERADMIN-only per the rights matrix                |
+| `/admin/users`                  | `ADM_USER`   | SUPERADMIN rows always read-only for ADMIN callers   |
 
 ---
 
-## Definition of Done coverage (PROJECT_PLAN.md §✅)
+## Deployment
 
-| Mandate                                       | Where it lives                                                  |
-|-----------------------------------------------|-----------------------------------------------------------------|
-| No DELETE statements                          | Postgres trigger `reject_hard_delete` + no DELETE in source     |
-| Soft-deleted invisible to USER                | Lambda filter + UI filter (`/api/products` list)                 |
-| SUPERADMIN protection (UI + API)              | Modal-disabled button + handler check + DB trigger              |
-| Audit stamps on every write                   | `makeStamp()` called in every handler write path                |
-| Stamp hidden from USER                        | `sanitiseRow` in products handler + `canSeeStamp` in UI          |
-| Live production URL                           | Deploy via Amplify (see Getting started)                        |
+- **Frontend** → AWS Amplify Hosting, Astro SSR compute platform. Build is
+  defined in [`amplify.yml`](./amplify.yml) and triggered on push to `main`.
+- **Backend** → Amazon ECS Fargate, deployed by
+  [`.github/workflows/deploy-backend.yml`](./.github/workflows/deploy-backend.yml).
+  The workflow only fires when files under `backend/**` change. OIDC role,
+  Docker BuildKit cache from GHA, image tagged `<short-sha>-<run-number>`,
+  rolling update via `amazon-ecs-deploy-task-definition` with stability wait.
+- **Database** → Amazon RDS PostgreSQL 16. Flyway migrations run on backend
+  startup against the configured `DB_URL`.
+- **Session store** → ElastiCache for Redis. The cluster needs to be in the
+  same VPC as the ECS service.
+
+---
+
+## Definition of Done coverage (PROJECT_PLAN.md)
+
+| Mandate                                       | Where it lives                                                                                      |
+|-----------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| No DELETE statements                          | Postgres trigger `reject_hard_delete` (V3) + no DELETE in source                                    |
+| Soft-deleted invisible to USER                | `ProductController.list` / `getOne` + UI filter                                                     |
+| SUPERADMIN protection (UI + API + DB)         | UI disabled state + `AdminUsersController` check + `enforce_superadmin_protection` trigger          |
+| Audit stamps on every write                   | `StampHelper.make()` invoked in every repository write path                                         |
+| Stamp hidden from USER                        | `ProductController.sanitize` + `canSeeStamp` in UI                                                  |
+| Live production URL                           | Amplify (frontend) + ECS service (backend)                                                          |
 
 ---
 

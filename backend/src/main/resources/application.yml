@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: hopepms-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/hopedb}
+    username: ${DB_USER:hopepms}
+    password: ${DB_PASSWORD:hopepms}
+    hikari:
+      maximum-pool-size: 12
+      minimum-idle: 2
+      connection-timeout: 10000
+      idle-timeout: 60000
+      pool-name: hopepms-cp
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    default-schema: hopedb
+    schemas: hopedb
+    create-schemas: true
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      ssl:
+        enabled: ${REDIS_SSL:false}
+
+  jackson:
+    default-property-inclusion: NON_NULL
+
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+
+hopepms:
+  auth0:
+    domain: ${AUTH0_DOMAIN:hopepms.us.auth0.com}
+    client-id: ${AUTH0_CLIENT_ID:}
+    client-secret: ${AUTH0_CLIENT_SECRET:}
+    audience: ${AUTH0_AUDIENCE:https://api.hopepms.example.com}
+    redirect-uri: ${AUTH0_REDIRECT_URI:https://api.hopepms.example.com/api/auth/callback}
+    logout-return-to: ${AUTH0_LOGOUT_RETURN_TO:https://hopepms.example.com/login}
+  session:
+    cookie-name: HPMS_SID
+    ttl-standard-minutes: 30
+    ttl-superadmin-minutes: 8
+    cookie-secure: ${SESSION_COOKIE_SECURE:true}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://hopepms.example.com}
+
+logging:
+  level:
+    root: INFO
+    com.hopepms: INFO
+    org.springframework.security: WARN

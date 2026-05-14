@@ -2,7 +2,9 @@ import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import node from '@astrojs/node';
 
-// https://astro.build/config
+// SSR — Astro runs on AWS Amplify compute. The frontend never talks to the
+// database directly; all data calls go to the Spring Boot backend at
+// PUBLIC_API_BASE_URL (set per Amplify environment, e.g. https://api.hopepms.example.com).
 export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
@@ -12,16 +14,8 @@ export default defineConfig({
     tailwind({ applyBaseStyles: false }),
   ],
   vite: {
-    ssr: { noExternal: ['@auth0/auth0-spa-js'] },
     build: {
       cssMinify: 'lightningcss',
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            auth: ['@auth0/auth0-spa-js'],
-          },
-        },
-      },
     },
   },
   security: {

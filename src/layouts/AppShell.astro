@@ -22,93 +22,69 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
   </main>
 
   <div id="logout-toast" class="fixed bottom-6 left-1/2 z-50 hidden -translate-x-1/2 glass-strong px-4 py-3 text-sm shadow-glow">
-    Session timed out — please sign in again.
+    Session ended — please sign in again.
   </div>
 
   <script
     is:inline
     define:vars={{ requireRight, requireAdmin }}
   >
-    // Pass-through guards read by the module script below.
     window.__HOPEPMS_GUARD__ = { requireRight: requireRight ?? null, requireAdmin: !!requireAdmin };
   </script>
 
   <script type="module">
-    import { readSession, bindLifecycleHandlers, sessionTimeoutMs, lastTouchedAt, touch } from '/src/lib/security/session.ts';
-    import { startInactivityWatchdog } from '/src/lib/security/timeout.ts';
-    import { signOut } from '/src/lib/auth/auth0Client.ts';
+    import { loadSession, signOut, $session } from '/src/lib/auth/volatileSession.ts';
 
     const { requireRight, requireAdmin } = window.__HOPEPMS_GUARD__ || {};
     const main = document.getElementById('app-main');
     const sidebar = document.getElementById('app-sidebar');
-    const toast = document.getElementById('logout-toast');
     const toggle = document.getElementById('sidebar-toggle');
-    const timerEl = document.querySelector('[data-timer]');
 
-    function redirect(target) {
-      window.location.replace(target);
-    }
+    function redirect(target) { window.location.replace(target); }
 
     async function bootstrap() {
-      const session = await readSession();
+      const session = await loadSession();
       if (!session) return redirect('/login?reason=auth_required');
 
       if (requireAdmin && !(session.userType === 'ADMIN' || session.userType === 'SUPERADMIN')) {
         return redirect('/products?reason=forbidden');
       }
-      if (requireRight && !session.rights.includes(requireRight)) {
+      if (requireRight && !session.rights.has(requireRight)) {
         return redirect('/products?reason=forbidden');
       }
 
-      // Surface identity
       document.querySelectorAll('[data-username]').forEach((el) => el.textContent = session.username);
       document.querySelectorAll('[data-usertype]').forEach((el) => el.textContent = session.userType);
 
-      // Reveal rights-gated nav items
-      const navItems = document.querySelectorAll('[data-right]');
-      navItems.forEach((el) => {
+      document.querySelectorAll('[data-right]').forEach((el) => {
         const r = el.getAttribute('data-right');
         const visible =
           r === 'deleted'
             ? (session.userType === 'ADMIN' || session.userType === 'SUPERADMIN')
-            : session.rights.includes(r);
+            : session.rights.has(r);
         if (visible) el.classList.remove('hidden');
       });
 
-      // Sign-out
       document.getElementById('signout-btn')?.addEventListener('click', async () => {
         await signOut();
       });
 
-      // Mobile sidebar toggle
       toggle?.addEventListener('click', () => {
         sidebar?.classList.toggle('flex');
         sidebar?.classList.toggle('hidden');
       });
 
-      // Inactivity timer
-      bindLifecycleHandlers(() => redirect('/login?reason=timeout'));
-      startInactivityWatchdog(() => {
-        if (toast) {
-          toast.classList.remove('hidden');
-          toast.classList.add('animate-fade-in');
+      // Re-validate when the user comes back to the tab: a refresh kills the
+      // in-memory atom, and we may have crossed the server-side TTL.
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState !== 'visible') return;
+        const s = $session.get();
+        if (!s) {
+          const refreshed = await loadSession();
+          if (!refreshed) redirect('/login?reason=timeout');
         }
-        setTimeout(() => redirect('/login?reason=timeout'), 1200);
       });
 
-      // Visible inactivity countdown
-      const total = sessionTimeoutMs();
-      function renderTimer() {
-        const remaining = Math.max(0, total - (Date.now() - lastTouchedAt()));
-        const mm = String(Math.floor(remaining / 60000)).padStart(2, '0');
-        const ss = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
-        if (timerEl) timerEl.textContent = `${mm}:${ss}`;
-      }
-      touch();
-      renderTimer();
-      setInterval(renderTimer, 1000);
-
-      // Reveal the main panel after guard checks pass
       main.style.opacity = '1';
     }
 

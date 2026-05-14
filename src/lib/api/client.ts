@@ -1,11 +1,15 @@
 /**
- * Thin fetch wrapper for API Gateway → Lambda calls.
- * - Pulls the bearer token from the encrypted session vault.
- * - Re-validates traversal-safe path segments on the way out.
- * - Surfaces a typed `ApiError` so call sites can branch on `.status`.
+ * Thin fetch wrapper for Spring Boot API calls.
+ *
+ * Authentication is implicit: the browser ships the `HPMS_SID` HttpOnly cookie
+ * automatically when `credentials: 'include'` is set. No bearer token, no
+ * client-readable session — see ADR-001 (volatile sessions).
+ *
+ * 401 responses cause an in-process invalidation broadcast so every tab in the
+ * same origin returns to /login simultaneously.
  */
 
-import { getAccessToken } from '@lib/auth/auth0Client';
+import { clearSessionLocal } from '@lib/auth/volatileSession';
 import { hasTraversal, ValidationError } from '@lib/security/pathGuard';
 
 export class ApiError extends Error {
@@ -27,30 +31,28 @@ function joinPath(path: string): string {
 }
 
 interface RequestOpts {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'OPTIONS';
   body?: unknown;
   signal?: AbortSignal;
 }
 
 export async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
-  const token = await getAccessToken();
-  if (!token) {
-    throw new ApiError(401, 'unauthenticated', 'No active session');
-  }
-
   const res = await fetch(`${base()}${joinPath(path)}`, {
     method: opts.method ?? 'GET',
     headers: {
-      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal,
-    credentials: 'omit',
-    // Never cache authenticated responses on disk.
+    credentials: 'include',
     cache: 'no-store',
   });
+
+  if (res.status === 401) {
+    clearSessionLocal();
+    throw new ApiError(401, 'unauthenticated', 'Session expired');
+  }
 
   const text = await res.text();
   const json = text ? safeParse(text) : null;

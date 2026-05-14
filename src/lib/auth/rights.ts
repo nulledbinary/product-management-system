@@ -1,16 +1,11 @@
 /**
- * Rights-evaluation helpers. The source of truth is the API-returned
- * `rights: string[]` array (e.g., ['PRD_ADD', 'PRD_EDIT', 'REP_001']).
+ * Right-evaluation helpers that read from the volatile session atom.
  *
- * Pattern:
- *   const can = useRights(session);
- *   {can('PRD_ADD') && <AddButton />}
- *
- * We deliberately re-check on the server too — the UI gate is convenience,
- * the Lambda + RLS gate is the security boundary.
+ * The source of truth lives in [[volatileSession]]; this module only adapts
+ * it for components that want a synchronous "can I show this button?" check.
  */
 
-import type { SessionPayload } from '@lib/security/session';
+import type { SessionIdentity } from './volatileSession';
 
 export type Right =
   | 'PRD_ADD'
@@ -20,23 +15,22 @@ export type Right =
   | 'REP_002'
   | 'ADM_USER';
 
-export function useRights(session: SessionPayload | null) {
-  const set = new Set(session?.rights ?? []);
-  return (right: Right): boolean => set.has(right);
+export function useRights(session: SessionIdentity | null) {
+  return (right: Right): boolean => !!session && session.rights.has(right);
 }
 
-export function isAdmin(session: SessionPayload | null): boolean {
+export function isAdmin(session: SessionIdentity | null): boolean {
   return session?.userType === 'ADMIN' || session?.userType === 'SUPERADMIN';
 }
 
-export function isSuperAdmin(session: SessionPayload | null): boolean {
+export function isSuperAdmin(session: SessionIdentity | null): boolean {
   return session?.userType === 'SUPERADMIN';
 }
 
-export function canSeeStamp(session: SessionPayload | null): boolean {
+export function canSeeStamp(session: SessionIdentity | null): boolean {
   return isAdmin(session);
 }
 
-export function canSeeDeletedItems(session: SessionPayload | null): boolean {
+export function canSeeDeletedItems(session: SessionIdentity | null): boolean {
   return isAdmin(session);
 }

@@ -110,7 +110,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
       listProducts, createProduct, updateProduct,
       softDeleteProduct, getPriceHistory,
     } from '/src/lib/api/products.ts';
-    import { readSession } from '/src/lib/security/session.ts';
+    import { loadSession } from '/src/lib/auth/volatileSession.ts';
     import { canSeeStamp, useRights } from '/src/lib/auth/rights.ts';
     import { escapeHtml } from '/src/lib/security/sanitize.ts';
     import { ValidationError } from '/src/lib/security/pathGuard.ts';
@@ -312,7 +312,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
 
     // ── Boot ──────────────────────────────────────────────────────────
     (async () => {
-      session = await readSession();
+      session = await loadSession();
       can = useRights(session);
       showStamp = canSeeStamp(session);
       stampCols.forEach((c) => c.classList.toggle('hidden', !showStamp));

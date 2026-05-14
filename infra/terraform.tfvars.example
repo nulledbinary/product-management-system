@@ -1,0 +1,10 @@
+# Required: GitHub repo coordinates so the OIDC deployer role trusts the right workflow.
+github_org  = "your-github-org-or-username"
+github_repo = "productmanagement"
+
+# Optional overrides — defaults are tuned for the production-grade tier.
+# aws_region              = "ap-southeast-1"
+# environment             = "prod"
+# db_instance_class       = "db.t4g.micro"
+# redis_node_type         = "cache.t4g.micro"
+# ecs_desired_count       = 2

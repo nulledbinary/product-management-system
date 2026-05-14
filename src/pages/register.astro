@@ -90,7 +90,7 @@ import Logo from '@components/ui/Logo.astro';
   </main>
 
   <script type="module">
-    import { loginWithGoogle } from '/src/lib/auth/auth0Client.ts';
+    import { startLogin } from '/src/lib/auth/volatileSession.ts';
     import { matchOrThrow, PATTERNS, safeText, ValidationError } from '/src/lib/security/pathGuard.ts';
 
     const form = document.getElementById('register-form');
@@ -102,47 +102,41 @@ import Logo from '@components/ui/Logo.astro';
       el.classList.toggle('hidden', !msg);
     }
 
-    form?.addEventListener('submit', async (e) => {
+    // Registration is fully owned by Auth0 Universal Login. We validate the
+    // form fields client-side for early feedback, then hand off to the
+    // backend's /api/auth/start endpoint with screen_hint=signup. The first
+    // sign-in event triggers ProvisioningService, which creates the
+    // USER/INACTIVE row + default rights.
+    form?.addEventListener('submit', (e) => {
       e.preventDefault();
       ['firstName','lastName','username','email','password'].forEach((f) => show(f, ''));
 
       const data = new FormData(form);
-      let firstName, lastName, username, email, password;
+      let email;
       try {
-        firstName = safeText(data.get('firstName'), 'firstName', 50);
-        lastName  = safeText(data.get('lastName'),  'lastName',  50);
-        username  = matchOrThrow(data.get('username'), PATTERNS.username, 'username');
-        email     = matchOrThrow(data.get('email'),    PATTERNS.email,    'email');
-        password  = String(data.get('password') || '');
-        matchOrThrow(firstName, PATTERNS.name, 'firstName');
-        matchOrThrow(lastName,  PATTERNS.name, 'lastName');
+        safeText(String(data.get('firstName') || ''), 'firstName', 50);
+        safeText(String(data.get('lastName')  || ''), 'lastName',  50);
+        matchOrThrow(String(data.get('firstName') || ''), PATTERNS.name, 'firstName');
+        matchOrThrow(String(data.get('lastName')  || ''), PATTERNS.name, 'lastName');
+        matchOrThrow(String(data.get('username')  || ''), PATTERNS.username, 'username');
+        email = matchOrThrow(String(data.get('email') || ''), PATTERNS.email, 'email');
+        const password = String(data.get('password') || '');
         if (password.length < 10) throw new ValidationError('password', 'Password must be ≥ 10 characters.');
       } catch (err) {
-        if (err instanceof ValidationError) {
-          show(err.field, err.message);
-        }
+        if (err instanceof ValidationError) show(err.field, err.message);
         return;
       }
 
-      // Hand off to Auth0 Universal Login — registration is a managed flow.
-      // The provisioning trigger on the Lambda side creates the USER/INACTIVE row.
-      try {
-        const { getClient } = await import('/src/lib/auth/auth0Client.ts');
-        const client = await getClient();
-        await client.loginWithRedirect({
-          authorizationParams: {
-            screen_hint: 'signup',
-            login_hint: email,
-          },
-          appState: { firstName, lastName, username },
-        });
-      } catch (err) {
-        console.error(err);
-        show('password', 'Could not start registration. Try again.');
-      }
-      password = ''; // wipe local reference
+      const params = new URLSearchParams({
+        screen_hint: 'signup',
+        login_hint: email,
+        returnTo: '/products',
+      });
+      window.location.assign(`/api/auth/start?${params.toString()}`);
     });
 
-    document.getElementById('google-btn')?.addEventListener('click', () => loginWithGoogle());
+    document.getElementById('google-btn')?.addEventListener('click', () => {
+      startLogin('google-oauth2', '/products');
+    });
   </script>
 </BaseLayout>
