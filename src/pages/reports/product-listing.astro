@@ -41,9 +41,9 @@ import AppShell from '@layouts/AppShell.astro';
     </div>
   </section>
 
-  <script type="module">
-    import { getProductReport } from '/src/lib/api/users.ts';
-    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+  <script>
+    import { getProductReport } from '@lib/api/users';
+    import { escapeHtml } from '@lib/security/sanitize';
 
     const tbody = document.getElementById('rows');
     let rows = [];

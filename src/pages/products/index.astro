@@ -105,15 +105,15 @@ import ConfirmModal from '@components/ConfirmModal.astro';
     <ul id="history-list" class="space-y-2 overflow-y-auto"></ul>
   </aside>
 
-  <script type="module">
+  <script>
     import {
       listProducts, createProduct, updateProduct,
       softDeleteProduct, getPriceHistory,
-    } from '/src/lib/api/products.ts';
-    import { readSession } from '/src/lib/security/session.ts';
-    import { canSeeStamp, useRights } from '/src/lib/auth/rights.ts';
-    import { escapeHtml } from '/src/lib/security/sanitize.ts';
-    import { ValidationError } from '/src/lib/security/pathGuard.ts';
+    } from '@lib/api/products';
+    import { readSession } from '@lib/security/session';
+    import { canSeeStamp, useRights } from '@lib/auth/rights';
+    import { escapeHtml } from '@lib/security/sanitize';
+    import { ValidationError } from '@lib/security/pathGuard';
 
     const tbody = document.getElementById('rows');
     const emptyState = document.getElementById('empty-state');
