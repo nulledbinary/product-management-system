@@ -1,93 +1,74 @@
-# Hope, Inc. Product Management System (HopePMS)
-## Development & Implementation Plan (6-Week Capstone)
+# **Hope, Inc. Product Management System (HopePMS)**
 
-This document outlines the 6-week execution strategy for the **HopePMS** project. It incorporates the revised requirements including soft-deletes, multi-tier rights management, and Google OAuth integration.
+### **Astro & AWS Cloud-Native Edition**
 
----
+The **Hope, Inc. Product Management System (HopePMS)** is a secure, role-aware web application designed for managing product data and price histories within the HopeDB schema. This implementation leverages a modern serverless architecture to meet strict security and data integrity mandates.
 
-## 1. Project Overview
-The **HopePMS** is a secure, role-aware web application for managing product catalogs and pricing history. All data operations are governed by the **Rights Management** schema and restricted by **Supabase Row Level Security (RLS)**.
+## **🚀 Project Overview**
 
-### Core Mandates
-- 🔒 **Zero Hard Deletes:** No `DELETE` statements allowed. All removals use `record_status = 'INACTIVE'`.
-- 🔒 **User Isolation:** `INACTIVE` records are invisible to standard `USER` accounts.
-- 🔒 **SUPERADMIN Protection:** `ADMIN` accounts cannot modify or deactivate `SUPERADMIN` records.
-- 🔒 **Audit Trail:** Every write operation must generate a stamp: `[ACTION] [USERID] [YYYY-MM-DD] [HH:MM]`.
+The system allows authorized users to manage product records with access dynamically controlled by a Rights Management schema. The architecture is built to ensure high performance and enterprise-grade security.
 
----
+### **🔒 Core Security Mandates**
 
-## 2. Technology Stack
+* **Zero Hard Deletes:** The application must **NEVER** issue a DELETE SQL statement.  
+* **Soft-Delete Logic:** All removals are handled by setting record\_status \= 'INACTIVE'.  
+* **Visibility Isolation:** INACTIVE records are strictly invisible to standard **USER** accounts.  
+* **SUPERADMIN Protection:** **ADMIN** accounts are mechanically restricted from altering the rights, user type, or status of **SUPERADMIN** accounts.  
+* **Audit Trail:** Every write operation generates a "stamp" string (e.g., ADDED user2 2026-05-13 20:00). Audit columns are hidden from **USER** accounts.
+
+## **🛠️ Technology Stack**
+
 | Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Frontend** | React 18 + Vite | Component-based UI and build tool. |
-| **Styling** | Tailwind CSS | Utility-first responsive design. |
-| **Backend/DB** | Supabase (PostgreSQL) | Database, Auth, RLS Policies, and Triggers. |
-| **Auth** | Supabase Auth | Email/Password and Google OAuth 2.0. |
-| **State** | React Context API | Global Auth and Rights management. |
-| **Deployment** | Vercel / Netlify | Continuous Deployment. |
+| :---- | :---- | :---- |
+| **Frontend** | Astro | High-performance UI with Server-Side Rendering (SSR). |
+| **Authentication** | Auth0 | Identity management, RBAC, and Google OAuth 2.0. |
+| **Backend API** | AWS Lambda | Serverless business logic and CRUD operations. |
+| **Database** | Amazon RDS (PostgreSQL) | Managed relational database for HopeDB. |
+| **Gateway** | AWS API Gateway | Secure RESTful API entry point. |
 
----
+## **👥 User Types & Rights Matrix**
 
-## 3. Sprint Breakdown
+| Right / Feature | SUPERADMIN | ADMIN | USER | Module |
+| :---- | :---- | :---- | :---- | :---- |
+| **PRD\_ADD** (Add Product) | ✔ YES | ✔ YES | ✔ YES | Prod\_Mod |
+| **PRD\_EDIT** (Edit Product) | ✔ YES | ✔ YES | ✔ YES | Prod\_Mod |
+| **PRD\_DEL** (Soft Delete) | ✔ YES | ✘ NO | ✘ NO | Prod\_Mod |
+| **REP\_001** (Product Report) | ✔ YES | ✔ YES | ✔ YES | Report\_Mod |
+| **REP\_002** (Top Selling) | ✔ YES | ✘ NO | ✘ NO | Report\_Mod |
+| **ADM\_USER** (Manage Users) | ✔ YES | ✘ NO | ✘ NO | Adm\_Mod |
 
-### Sprint 1: Setup, Database & Authentication (Weeks 1–2)
-**Goal:** Initialize environments, establish the schema, and secure the login/registration pipeline.
+## **📅 6-Week Sprint Plan**
 
-- [ ] **Infrastructure:** Scaffold Vite/React project, configure Tailwind CSS, and set up GitHub branching (main/dev).
-- [ ] **Database Setup:** Initialize Supabase with `HopeDB` and `Rights Management` tables.
-- [ ] **Seed Data:** Manually seed the `SUPERADMIN` account (`jcesperanza@neu.edu.ph`).
-- [ ] **Authentication:**
-    - Implement Email/Password signup with email confirmation.
-    - Configure Google OAuth in Google Cloud Console and Supabase.
-    - Implement `/auth/callback` route for OAuth redirects.
-- [ ] **Backend Triggers:** Deploy the `provision_new_user()` PostgreSQL function to auto-assign `USER` rights and `INACTIVE` status to new signups.
-- [ ] **Login Guard:** Implement logic to block `INACTIVE` accounts from accessing the dashboard.
+### **Sprint 1: Weeks 1–2 (Infrastructure & Identity)**
 
-### Sprint 2: CRUD, Rights & Soft-Delete Enforcement (Weeks 3–4)
-**Goal:** Build the core Product management UI with strict visibility and rights gating.
+* Scaffold Astro project and configure Auth0 for Google OAuth and Email sign-in.  
+* Initialize AWS RDS with HopeDB schema and seed the **SUPERADMIN** account.  
+* Implement Auth0 Actions for auto-provisioning new users as USER / INACTIVE.
 
-- [ ] **Product Module:** Build Product List, Add Product Modal, and Edit Product Modal.
-- [ ] **Visibility Rules:** Ensure standard `USER` accounts only query `record_status = 'ACTIVE'`.
-- [ ] **Soft-Delete Implementation:**
-    - "Delete" button updates `record_status` to `INACTIVE`.
-    - Create `Deleted Items` panel (ADMIN/SUPERADMIN only) for record recovery.
-- [ ] **Rights Gating:** - Create `UserRightsContext` and `useRights()` hook.
-    - Hide `Add/Edit/Delete` buttons based on `UserModule_Rights`.
-    - Hide `Stamp` columns from `USER` type accounts.
-- [ ] **Security:** Apply RLS policies to the `product` and `priceHist` tables to enforce visibility at the database level.
+### **Sprint 2: Weeks 3–4 (CRUD & Visibility)**
 
-### Sprint 3: Reports, Admin & Deployment (Weeks 5–6)
-**Goal:** Implement analytics, user management, and go live.
+* Develop AWS Lambda functions for Product management with soft-delete enforcement.  
+* Apply visibility filters in API queries to ensure USER roles only see ACTIVE records.  
+* Build the Deleted Items recovery interface (ADMIN/SUPERADMIN only).
 
-- [ ] **Reports Module:** - `REP_001`: Product Listing with current price.
-    - `REP_002`: Top Selling Products (JOIN query).
-- [ ] **Admin Module:** - Build User Management table.
-    - Implement Activate/Deactivate functionality.
-    - **SUPERADMIN Guard:** Ensure all action buttons are disabled for `SUPERADMIN` rows.
-- [ ] **Testing:** Execute the 18-case rights matrix. Verify no `DELETE` keywords exist in the codebase.
-- [ ] **Deployment:** Deploy to Vercel/Netlify with environment variables.
-- [ ] **Finalization:** Generate User Manual and Sprint Log.
+### **Sprint 3: Weeks 5–6 (Reports & Delivery)**
 
----
+* Implement Reporting Lambdas (REP\_001 and REP\_002) using PostgreSQL views.  
+* Build the Admin User Management module with **SUPERADMIN** protection logic.  
+* Deploy Astro frontend to AWS (S3/CloudFront) and finalize production environment.
 
-## 4. Rights Matrix Summary
-| Feature | SUPERADMIN | ADMIN | USER |
-| :--- | :---: | :---: | :---: |
-| **Add Product** | YES | YES | YES |
-| **Edit Product** | YES | YES | YES |
-| **Soft Delete** | YES | NO | NO |
-| **Product Report** | YES | YES | YES |
-| **Top Selling Report** | YES | NO | NO |
-| **Manage Users** | YES | NO | NO |
-| **View Stamps** | YES | YES* | NO |
-*\*ADMIN can only see stamps on product/priceHist tables.*
+## **✅ Definition of Done**
 
----
+* \[ \] No DELETE statements exist in the codebase.  
+* \[ \] Soft-deleted records are invisible to standard **USER** accounts.  
+* \[ \] **SUPERADMIN** protection is enforced at both UI and API levels.  
+* \[ \] Audit stamps are correctly generated for every write action.  
+* \[ \] Live production URL is functional and secure.
 
-## 5. Definition of Done
-1. [ ] Supabase RLS policies active and verified.
-2. [ ] Google OAuth and Email signup both trigger auto-provisioning.
-3. [ ] `INACTIVE` records are unreachable by standard `USER` accounts.
-4. [ ] `ADMIN` cannot modify `SUPERADMIN` accounts (Frontend + DB layers).
-5. [ ] Stamp format: `ACTION USERID YYYY-MM-DD HH:MM`.
-6. [ ] Live URL accessible with all three user roles functional.
+**Prepared by:** Boris Gamaliel D. Duque & Yna Solitario
+
+**Instructor:** Jeremias C. Esperanza
+
+**Institution:** New Era University – College of Computer Studies
+
+**Course:** Software Engineering 2
