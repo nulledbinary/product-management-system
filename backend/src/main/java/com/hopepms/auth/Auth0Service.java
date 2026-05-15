@@ -49,7 +49,6 @@ public class Auth0Service {
                 .queryParam("client_id", props.auth0().clientId())
                 .queryParam("redirect_uri", props.auth0().redirectUri())
                 .queryParam("scope", "openid profile email")
-                .queryParam("audience", props.auth0().audience())
                 .queryParam("state", state)
                 .queryParam("code_challenge", pkceChallenge)
                 .queryParam("code_challenge_method", "S256");
