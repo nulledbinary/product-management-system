@@ -10,6 +10,8 @@ import com.hopepms.util.ApiException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,8 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final Auth0Service auth0;
     private final AuthFlowStore flowStore;
@@ -71,10 +75,21 @@ public class AuthController {
     /** Step 2 — Auth0 calls this with ?code=…&state=…; we exchange + set cookie. */
     @GetMapping("/callback")
     public ResponseEntity<Void> callback(
-            @RequestParam("code") String code,
+            @RequestParam(value = "code", required = false) String code,
             @RequestParam("state") String state,
+            @RequestParam(value = "error", required = false) String error,
+            @RequestParam(value = "error_description", required = false) String errorDescription,
             HttpServletResponse res
     ) {
+        if (error != null) {
+            log.warn("Auth0 redirected to /callback with error={} description={}", error, errorDescription);
+            flowStore.consume(state);
+            URI to = URI.create(props.auth0().logoutReturnTo() + "?reason=auth_failed");
+            return ResponseEntity.status(HttpStatus.FOUND).location(to).build();
+        }
+        if (code == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "missing_code", "Authorization code missing");
+        }
         AuthFlowStore.FlowEntry entry = flowStore.consume(state)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "invalid_state", "Login state expired or invalid"));
 
