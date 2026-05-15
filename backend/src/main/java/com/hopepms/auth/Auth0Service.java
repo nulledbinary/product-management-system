@@ -51,7 +51,7 @@ public class Auth0Service {
         if (connection != null && !connection.isBlank()) b.queryParam("connection", connection);
         if (loginHint  != null && !loginHint.isBlank())  b.queryParam("login_hint", loginHint);
         if (screenHint != null && !screenHint.isBlank()) b.queryParam("screen_hint", screenHint);
-        return b.build(true).toUri();
+        return b.build().encode().toUri();
     }
 
     /** Exchange auth code for an id token. Returns the verified ID-token claims. */
@@ -112,7 +112,7 @@ public class Auth0Service {
         return UriComponentsBuilder.fromHttpUrl(props.auth0().logoutUrl())
                 .queryParam("client_id", props.auth0().clientId())
                 .queryParam("returnTo", props.auth0().logoutReturnTo())
-                .build(true).toUri();
+                .build().encode().toUri();
     }
 
     private static String url(String s) {
