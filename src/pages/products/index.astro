@@ -111,7 +111,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
       listProducts, createProduct, updateProduct,
       softDeleteProduct, getPriceHistory,
     } from '@lib/api/products';
-    import { readSession } from '@lib/security/session';
+    import { loadSession } from '@lib/auth/volatileSession';
     import { canSeeStamp, useRights } from '@lib/auth/rights';
     import { escapeHtml } from '@lib/security/sanitize';
     import { ValidationError } from '@lib/security/pathGuard';
@@ -313,7 +313,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
 
     // ── Boot ──────────────────────────────────────────────────────────
     (async () => {
-      session = await readSession();
+      session = await loadSession();
       can = useRights(session);
       showStamp = canSeeStamp(session);
       stampCols.forEach((c) => c.classList.toggle('hidden', !showStamp));

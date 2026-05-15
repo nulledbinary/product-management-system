@@ -147,11 +147,20 @@ onMount($session, () => {
   };
 });
 
-/** Kick off the Auth0 login round-trip via the backend. */
-export function startLogin(connection?: 'google-oauth2', returnTo: string = '/products'): void {
+export interface StartLoginOptions {
+  connection?: 'google-oauth2';
+  loginHint?: string;
+  screenHint?: 'signup' | 'login';
+  returnTo?: string;
+}
+
+/** Kick off the Auth0 login round-trip via the backend (/api/auth/start). */
+export function startLogin(opts: StartLoginOptions = {}): void {
   const params = new URLSearchParams();
-  if (connection) params.set('connection', connection);
-  params.set('returnTo', returnTo);
+  if (opts.connection) params.set('connection', opts.connection);
+  if (opts.loginHint) params.set('login_hint', opts.loginHint);
+  if (opts.screenHint) params.set('screen_hint', opts.screenHint);
+  params.set('returnTo', opts.returnTo ?? '/products');
   window.location.assign(`/api/auth/start?${params.toString()}`);
 }
 

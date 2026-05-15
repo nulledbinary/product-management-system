@@ -25,13 +25,6 @@ export default defineConfig({
     },
     build: {
       cssMinify: 'lightningcss',
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            auth: ['@auth0/auth0-spa-js'],
-          },
-        },
-      },
     },
   },
   security: {
