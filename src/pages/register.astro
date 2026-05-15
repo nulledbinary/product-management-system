@@ -34,44 +34,17 @@ import Logo from '@components/ui/Logo.astro';
           <div class="mb-6 lg:hidden"><Logo /></div>
           <header class="mb-7">
             <h2 class="font-display text-2xl font-semibold tracking-tight">Create your account</h2>
-            <p class="mt-1 text-sm text-ink-muted">It only takes a moment.</p>
+            <p class="mt-1 text-sm text-ink-muted">You'll set your password on Auth0's hosted signup page.</p>
           </header>
 
           <form id="register-form" class="space-y-4" novalidate autocomplete="on">
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label for="firstName" class="field-label">First name</label>
-                <input id="firstName" name="firstName" class="field" required maxlength="50" />
-                <p class="field-error hidden" data-error="firstName"></p>
-              </div>
-              <div>
-                <label for="lastName" class="field-label">Last name</label>
-                <input id="lastName" name="lastName" class="field" required maxlength="50" />
-                <p class="field-error hidden" data-error="lastName"></p>
-              </div>
-            </div>
-
-            <div>
-              <label for="username" class="field-label">Username</label>
-              <input id="username" name="username" class="field" required minlength="3" maxlength="32" />
-              <p class="field-help">Letters, numbers, dot, dash, underscore. 3–32 chars.</p>
-              <p class="field-error hidden" data-error="username"></p>
-            </div>
-
             <div>
               <label for="email" class="field-label">Work email</label>
-              <input id="email" name="email" type="email" class="field" required autocomplete="username" />
+              <input id="email" name="email" type="email" class="field" required autocomplete="username" placeholder="you@hope.inc" />
               <p class="field-error hidden" data-error="email"></p>
             </div>
 
-            <div>
-              <label for="password" class="field-label">Password</label>
-              <input id="password" name="password" type="password" class="field" required minlength="10" autocomplete="new-password" />
-              <p class="field-help">Minimum 10 characters. Use a passphrase.</p>
-              <p class="field-error hidden" data-error="password"></p>
-            </div>
-
-            <button type="submit" class="btn-primary w-full">Create account</button>
+            <button type="submit" class="btn-primary w-full">Continue to sign up</button>
           </form>
 
           <div class="my-6 divider-text"><span>or</span></div>
@@ -91,8 +64,8 @@ import Logo from '@components/ui/Logo.astro';
 
   <script>
     // @ts-nocheck
-    import { loginWithGoogle } from '@lib/auth/auth0Client';
-    import { matchOrThrow, PATTERNS, safeText, ValidationError } from '@lib/security/pathGuard';
+    import { startLogin } from '@lib/auth/volatileSession';
+    import { matchOrThrow, PATTERNS, ValidationError } from '@lib/security/pathGuard';
 
     const form = document.getElementById('register-form');
 
@@ -103,47 +76,24 @@ import Logo from '@components/ui/Logo.astro';
       el.classList.toggle('hidden', !msg);
     }
 
-    form?.addEventListener('submit', async (e) => {
+    form?.addEventListener('submit', (e) => {
       e.preventDefault();
-      ['firstName','lastName','username','email','password'].forEach((f) => show(f, ''));
+      show('email', '');
 
       const data = new FormData(form);
-      let firstName, lastName, username, email, password;
+      let email;
       try {
-        firstName = safeText(data.get('firstName'), 'firstName', 50);
-        lastName  = safeText(data.get('lastName'),  'lastName',  50);
-        username  = matchOrThrow(data.get('username'), PATTERNS.username, 'username');
-        email     = matchOrThrow(data.get('email'),    PATTERNS.email,    'email');
-        password  = String(data.get('password') || '');
-        matchOrThrow(firstName, PATTERNS.name, 'firstName');
-        matchOrThrow(lastName,  PATTERNS.name, 'lastName');
-        if (password.length < 10) throw new ValidationError('password', 'Password must be ≥ 10 characters.');
+        email = matchOrThrow(data.get('email'), PATTERNS.email, 'email');
       } catch (err) {
-        if (err instanceof ValidationError) {
-          show(err.field, err.message);
-        }
+        if (err instanceof ValidationError) show(err.field, err.message);
         return;
       }
 
-      // Hand off to Auth0 Universal Login — registration is a managed flow.
-      // The provisioning trigger on the Lambda side creates the USER/INACTIVE row.
-      try {
-        const { getClient } = await import('@lib/auth/auth0Client');
-        const client = await getClient();
-        await client.loginWithRedirect({
-          authorizationParams: {
-            screen_hint: 'signup',
-            login_hint: email,
-          },
-          appState: { firstName, lastName, username },
-        });
-      } catch (err) {
-        console.error(err);
-        show('password', 'Could not start registration. Try again.');
-      }
-      password = ''; // wipe local reference
+      startLogin({ screenHint: 'signup', loginHint: email });
     });
 
-    document.getElementById('google-btn')?.addEventListener('click', () => loginWithGoogle());
+    document.getElementById('google-btn')?.addEventListener('click', () => {
+      startLogin({ connection: 'google-oauth2', screenHint: 'signup' });
+    });
   </script>
 </BaseLayout>

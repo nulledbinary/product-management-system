@@ -10,7 +10,7 @@
  * the Lambda + RLS gate is the security boundary.
  */
 
-import type { SessionPayload } from '@lib/security/session';
+import type { SessionIdentity } from '@lib/auth/volatileSession';
 
 export type Right =
   | 'PRD_ADD'
@@ -20,23 +20,22 @@ export type Right =
   | 'REP_002'
   | 'ADM_USER';
 
-export function useRights(session: SessionPayload | null) {
-  const set = new Set(session?.rights ?? []);
-  return (right: Right): boolean => set.has(right);
+export function useRights(session: SessionIdentity | null) {
+  return (right: Right): boolean => session !== null && session.rights.has(right);
 }
 
-export function isAdmin(session: SessionPayload | null): boolean {
+export function isAdmin(session: SessionIdentity | null): boolean {
   return session?.userType === 'ADMIN' || session?.userType === 'SUPERADMIN';
 }
 
-export function isSuperAdmin(session: SessionPayload | null): boolean {
+export function isSuperAdmin(session: SessionIdentity | null): boolean {
   return session?.userType === 'SUPERADMIN';
 }
 
-export function canSeeStamp(session: SessionPayload | null): boolean {
+export function canSeeStamp(session: SessionIdentity | null): boolean {
   return isAdmin(session);
 }
 
-export function canSeeDeletedItems(session: SessionPayload | null): boolean {
+export function canSeeDeletedItems(session: SessionIdentity | null): boolean {
   return isAdmin(session);
 }
