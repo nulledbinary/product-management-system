@@ -49,9 +49,10 @@ import ConfirmModal from '@components/ConfirmModal.astro';
                 confirmLabel="Recover"
                 variant="primary" />
 
-  <script type="module">
-    import { listProducts, recoverProduct } from '/src/lib/api/products.ts';
-    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+  <script>
+    // @ts-nocheck
+    import { listProducts, recoverProduct } from '@lib/api/products';
+    import { escapeHtml } from '@lib/security/sanitize';
 
     const tbody = document.getElementById('rows');
     const empty = document.getElementById('empty-state');

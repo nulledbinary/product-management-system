@@ -1,11 +1,11 @@
 /**
- * Thin fetch wrapper for API Gateway → Lambda calls.
- * - Pulls the bearer token from the encrypted session vault.
+ * Thin fetch wrapper for backend (Spring Boot / BFF) calls.
+ * - Authentication rides on the HttpOnly `HPMS_SID` cookie set by the
+ *   backend at /api/auth/callback; we never see or carry a Bearer token.
  * - Re-validates traversal-safe path segments on the way out.
  * - Surfaces a typed `ApiError` so call sites can branch on `.status`.
  */
 
-import { getAccessToken } from '@lib/auth/auth0Client';
 import { hasTraversal, ValidationError } from '@lib/security/pathGuard';
 
 export class ApiError extends Error {
@@ -33,22 +33,15 @@ interface RequestOpts {
 }
 
 export async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
-  const token = await getAccessToken();
-  if (!token) {
-    throw new ApiError(401, 'unauthenticated', 'No active session');
-  }
-
   const res = await fetch(`${base()}${joinPath(path)}`, {
     method: opts.method ?? 'GET',
     headers: {
-      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal,
-    credentials: 'omit',
-    // Never cache authenticated responses on disk.
+    credentials: 'include',
     cache: 'no-store',
   });
 

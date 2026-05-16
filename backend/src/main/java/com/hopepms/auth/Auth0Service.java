@@ -9,10 +9,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hopepms.config.HopePmsProperties;
 import com.hopepms.util.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
@@ -21,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class Auth0Service {
+
+    private static final Logger log = LoggerFactory.getLogger(Auth0Service.class);
 
     private final HopePmsProperties props;
     private final RestClient http;
@@ -44,14 +49,13 @@ public class Auth0Service {
                 .queryParam("client_id", props.auth0().clientId())
                 .queryParam("redirect_uri", props.auth0().redirectUri())
                 .queryParam("scope", "openid profile email")
-                .queryParam("audience", props.auth0().audience())
                 .queryParam("state", state)
                 .queryParam("code_challenge", pkceChallenge)
                 .queryParam("code_challenge_method", "S256");
         if (connection != null && !connection.isBlank()) b.queryParam("connection", connection);
         if (loginHint  != null && !loginHint.isBlank())  b.queryParam("login_hint", loginHint);
         if (screenHint != null && !screenHint.isBlank()) b.queryParam("screen_hint", screenHint);
-        return b.build(true).toUri();
+        return b.build().encode().toUri();
     }
 
     /** Exchange auth code for an id token. Returns the verified ID-token claims. */
@@ -72,7 +76,12 @@ public class Auth0Service {
                     .body(body)
                     .retrieve()
                     .body(String.class);
+        } catch (RestClientResponseException e) {
+            log.error("Auth0 /oauth/token rejected exchange: status={} body={}",
+                    e.getStatusCode(), e.getResponseBodyAsString());
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "auth0_token_failed", "Token exchange failed");
         } catch (Exception e) {
+            log.error("Auth0 /oauth/token call failed before response: {}", e.toString(), e);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "auth0_token_failed", "Token exchange failed");
         }
 
@@ -112,7 +121,7 @@ public class Auth0Service {
         return UriComponentsBuilder.fromHttpUrl(props.auth0().logoutUrl())
                 .queryParam("client_id", props.auth0().clientId())
                 .queryParam("returnTo", props.auth0().logoutReturnTo())
-                .build(true).toUri();
+                .build().encode().toUri();
     }
 
     private static String url(String s) {

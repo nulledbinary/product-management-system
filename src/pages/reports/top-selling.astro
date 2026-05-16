@@ -22,9 +22,10 @@ import AppShell from '@layouts/AppShell.astro';
     </div>
   </section>
 
-  <script type="module">
-    import { getTopSelling } from '/src/lib/api/users.ts';
-    import { escapeHtml } from '/src/lib/security/sanitize.ts';
+  <script>
+    // @ts-nocheck
+    import { getTopSelling } from '@lib/api/users';
+    import { escapeHtml } from '@lib/security/sanitize';
 
     const list = document.getElementById('bars');
 

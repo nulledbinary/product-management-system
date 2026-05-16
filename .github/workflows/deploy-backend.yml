@@ -2,7 +2,7 @@ name: deploy-backend
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-backend.yml'
@@ -13,10 +13,10 @@ concurrency:
 
 permissions:
   id-token: write        # OIDC — no static AWS keys
-  contents: read
+  contents: write        # create deploy/backend/* git tag
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: ap-southeast-1
   ECR_REPOSITORY: hopepms/backend
   ECS_CLUSTER: hopepms-prod
   ECS_SERVICE: hopepms-backend
@@ -65,7 +65,6 @@ jobs:
             --cache-to type=gha,mode=max \
             --provenance=false \
             --tag "${{ steps.tag.outputs.image_uri }}" \
-            --tag "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest" \
             --push \
             .
 

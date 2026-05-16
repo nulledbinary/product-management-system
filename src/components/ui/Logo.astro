@@ -1,8 +1,27 @@
 ---
-interface Props { compact?: boolean }
-const { compact = false } = Astro.props;
+interface Props {
+  compact?: boolean;
+  /**
+   * Where the brand mark links to. Defaults to the app home (`/products`)
+   * for use inside the authenticated shell (Sidebar).
+   *
+   * Pass `null` on public/landing pages (login, register) so the mark is a
+   * static brand element and does NOT deep-link an unauthenticated visitor
+   * into the gated app.
+   */
+  href?: string | null;
+}
+const { compact = false, href = '/products' } = Astro.props;
+const Tag = href ? 'a' : 'div';
 ---
-<a href="/products" class="flex items-center gap-2.5 group" aria-label="HopePMS home">
+<Tag
+  {...href ? { href } : {}}
+  class:list={[
+    'flex items-center gap-2.5 group',
+    href && 'transition-opacity hover:opacity-90',
+  ]}
+  aria-label="HopePMS"
+>
   <span class="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-grad shadow-glow ring-1 ring-white/20 transition-transform group-hover:scale-105">
     <svg viewBox="0 0 24 24" class="h-5 w-5 text-white" fill="currentColor" aria-hidden="true">
       <path d="M6 4h2.8v6.6h6.4V4H18v16h-2.8v-7.2H8.8V20H6z"/>
@@ -15,4 +34,4 @@ const { compact = false } = Astro.props;
       <div class="text-2xs uppercase tracking-[0.18em] text-ink-dim">Product Suite</div>
     </div>
   )}
-</a>
+</Tag>
