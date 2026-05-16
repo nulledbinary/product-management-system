@@ -12,14 +12,33 @@ interface Props {
 const { title, subtitle, requireRight, requireAdmin } = Astro.props;
 ---
 <BaseLayout title={`${title} · HopePMS`} description={subtitle ?? 'HopePMS'} variant="app">
-  <Sidebar />
-
-  <main class="min-h-screen lg:pl-64">
-    <TopBar title={title} subtitle={subtitle} />
-    <div id="app-main" class="px-4 py-6 sm:px-6 lg:px-8 opacity-0 transition-opacity duration-300">
-      <slot />
+  <!-- Opaque boot cover: nothing behind it paints until the session is
+       resolved, so an unauthenticated visitor never sees the app chrome. -->
+  <div id="boot-splash" class="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-bg-deep">
+    <span class="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-black shadow-glow">
+      <svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+        <path d="M6 4h2.8v6.6h6.4V4H18v16h-2.8v-7.2H8.8V20H6z"/>
+      </svg>
+      <span class="absolute -inset-2 rounded-3xl bg-white/20 blur-xl animate-pulse-glow"></span>
+    </span>
+    <div class="flex items-center gap-1.5" aria-label="Loading">
+      <span class="h-1.5 w-1.5 rounded-full bg-ink-muted animate-dot"></span>
+      <span class="h-1.5 w-1.5 rounded-full bg-ink-muted animate-dot [animation-delay:200ms]"></span>
+      <span class="h-1.5 w-1.5 rounded-full bg-ink-muted animate-dot [animation-delay:400ms]"></span>
     </div>
-  </main>
+    <p class="text-2xs uppercase tracking-[0.22em] text-ink-dim">Verifying session</p>
+  </div>
+
+  <div id="app-shell" class="opacity-0 transition-opacity duration-500">
+    <Sidebar />
+
+    <main class="min-h-screen lg:pl-64">
+      <TopBar title={title} subtitle={subtitle} />
+      <div id="app-main" class="px-4 py-6 sm:px-6 lg:px-8">
+        <slot />
+      </div>
+    </main>
+  </div>
 
   <div id="logout-toast" class="fixed bottom-6 left-1/2 z-50 hidden -translate-x-1/2 glass-strong px-4 py-3 text-sm shadow-glow">
     Session timed out — please sign in again.
@@ -43,7 +62,8 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
     } from '@lib/security/timeout';
 
     const { requireRight, requireAdmin } = window.__HOPEPMS_GUARD__ || {};
-    const main = document.getElementById('app-main');
+    const shell = document.getElementById('app-shell');
+    const splash = document.getElementById('boot-splash');
     const sidebar = document.getElementById('app-sidebar');
     const toast = document.getElementById('logout-toast');
     const toggle = document.getElementById('sidebar-toggle');
@@ -104,7 +124,13 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
       renderTimer();
       setInterval(renderTimer, 1000);
 
-      main.style.opacity = '1';
+      // Authorized: reveal the shell, then dissolve the boot cover.
+      shell?.classList.remove('opacity-0');
+      if (splash) {
+        splash.style.transition = 'opacity 320ms ease';
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 360);
+      }
     }
 
     bootstrap().catch((err) => {

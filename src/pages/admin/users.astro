@@ -1,19 +1,45 @@
 ---
 import AppShell from '@layouts/AppShell.astro';
-import ConfirmModal from '@components/ConfirmModal.astro';
 ---
-<AppShell title="Manage users" subtitle="ADM_USER · Activate or deactivate accounts." requireRight="ADM_USER">
+<AppShell title="Manage users" subtitle="ADM_USER · Provision, promote, deactivate and off-board accounts." requireRight="ADM_USER">
   <section class="space-y-6">
-    <div class="card">
+    <!-- ─── Header / protection notice ──────────────────────────────── -->
+    <div class="card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-start gap-3">
         <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-amber/15 text-accent-amber">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 0 0 1.74-3L13.74 4a2 2 0 0 0-3.48 0L3.33 16a2 2 0 0 0 1.74 3z"/></svg>
         </span>
         <div>
           <p class="font-display text-sm font-medium">SUPERADMIN protection is active.</p>
-          <p class="text-sm text-ink-muted">Actions on SUPERADMIN rows are disabled in the UI <strong>and</strong> blocked by the Postgres RLS policy. Both layers are enforced independently.</p>
+          <p class="text-sm text-ink-muted">Role &amp; off-boarding actions are SUPERADMIN-only and are independently enforced by the Postgres policy layer.</p>
         </div>
       </div>
+      <button id="new-user-btn" class="btn-primary hidden self-start sm:self-auto" data-sa>
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        New user
+      </button>
+    </div>
+
+    <!-- ─── Stats strip ─────────────────────────────────────────────── -->
+    <div class="grid gap-4 sm:grid-cols-4 reveal">
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Total users</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="total">—</p></div>
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Active</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="active">—</p></div>
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Admins</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="admins">—</p></div>
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Deactivated</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="inactive">—</p></div>
+    </div>
+
+    <!-- ─── Toolbar ─────────────────────────────────────────────────── -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="relative flex-1 max-w-md">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="user-search" type="search" placeholder="Search name, username or email…" class="field pl-9" />
+      </div>
+      <select id="role-filter" class="field sm:w-44">
+        <option value="">All roles</option>
+        <option value="SUPERADMIN">SUPERADMIN</option>
+        <option value="ADMIN">ADMIN</option>
+        <option value="USER">USER</option>
+      </select>
     </div>
 
     <div class="card !p-0 overflow-hidden">
@@ -23,9 +49,9 @@ import ConfirmModal from '@components/ConfirmModal.astro';
             <tr>
               <th>User</th>
               <th>Email</th>
-              <th>Type</th>
+              <th>Role</th>
               <th>Status</th>
-              <th>Audit stamp</th>
+              <th>Last activity</th>
               <th class="text-right">Actions</th>
             </tr>
           </thead>
@@ -36,107 +62,289 @@ import ConfirmModal from '@components/ConfirmModal.astro';
                 <td><div class="skeleton h-4 w-56"></div></td>
                 <td><div class="skeleton h-4 w-20"></div></td>
                 <td><div class="skeleton h-4 w-20"></div></td>
-                <td><div class="skeleton h-4 w-40"></div></td>
+                <td><div class="skeleton h-4 w-44"></div></td>
                 <td><div class="skeleton h-4 w-24 ml-auto"></div></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <div id="empty-state" class="hidden p-12 text-center">
+        <p class="font-display text-base font-medium">No users match</p>
+        <p class="text-sm text-ink-dim">Try a different search or role filter.</p>
+      </div>
     </div>
   </section>
 
-  <ConfirmModal id="user-confirm" title="Confirm" message="" confirmLabel="Confirm" />
+  <!-- ─── Generic confirm ─────────────────────────────────────────────── -->
+  <div id="confirm-backdrop" class="modal-backdrop hidden" data-modal-backdrop="confirm"></div>
+  <div id="confirm" role="alertdialog" aria-modal="true" class="modal-panel hidden" data-modal="confirm">
+    <h2 id="confirm-title" class="font-display text-lg font-semibold">Confirm</h2>
+    <p id="confirm-msg" class="mt-2 text-sm text-ink-muted"></p>
+    <div class="mt-6 flex items-center justify-end gap-2">
+      <button type="button" class="btn-secondary" data-modal-close="confirm">Cancel</button>
+      <button type="button" id="confirm-ok" class="btn-primary">Confirm</button>
+    </div>
+  </div>
+
+  <!-- ─── Eradicate (type-to-confirm) ─────────────────────────────────── -->
+  <div id="erad-backdrop" class="modal-backdrop hidden" data-modal-backdrop="erad"></div>
+  <div id="erad" role="alertdialog" aria-modal="true" class="modal-panel hidden" data-modal="erad">
+    <h2 class="font-display text-lg font-semibold text-accent-rose">Eradicate account</h2>
+    <p class="mt-2 text-sm text-ink-muted">
+      This <strong>permanently deletes</strong> <span id="erad-who" class="font-medium text-ink"></span>,
+      all of their access grants, and rewrites every audit stamp they touched so it keeps
+      their full name but drops their username and id. This cannot be undone.
+    </p>
+    <label class="field-label mt-5">Type <span id="erad-confirm-word" class="font-mono text-ink"></span> to confirm</label>
+    <input id="erad-input" class="field" autocomplete="off" placeholder="" />
+    <div class="mt-6 flex items-center justify-end gap-2">
+      <button type="button" class="btn-secondary" data-modal-close="erad">Cancel</button>
+      <button type="button" id="erad-ok" class="btn-danger" disabled>Eradicate permanently</button>
+    </div>
+  </div>
+
+  <!-- ─── New user ────────────────────────────────────────────────────── -->
+  <div id="newuser-backdrop" class="modal-backdrop hidden" data-modal-backdrop="newuser"></div>
+  <div id="newuser" role="dialog" aria-modal="true" class="modal-panel hidden" data-modal="newuser">
+    <header class="mb-5">
+      <h2 class="font-display text-xl font-semibold tracking-tight">Provision a user</h2>
+      <p class="mt-1 text-sm text-ink-muted">The account reconciles to its Auth0 identity by email on first sign-in.</p>
+    </header>
+    <form id="newuser-form" class="space-y-4" novalidate>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">First name</label>
+          <input name="firstName" class="field" required maxlength="49" placeholder="Jane" />
+        </div>
+        <div>
+          <label class="field-label">Last name</label>
+          <input name="lastName" class="field" required maxlength="49" placeholder="Cruz" />
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Username</label>
+        <input name="username" class="field" required minlength="3" maxlength="32" placeholder="jane.cruz" />
+        <p class="field-help">3–32 chars: letters, numbers, dot, dash, underscore.</p>
+      </div>
+      <div>
+        <label class="field-label">Email</label>
+        <input name="email" type="email" class="field" required maxlength="120" placeholder="jane@hope.org" />
+      </div>
+      <div>
+        <label class="field-label">Role</label>
+        <select name="userType" class="field">
+          <option value="USER">USER — standard access</option>
+          <option value="ADMIN">ADMIN — manage products &amp; users</option>
+          <option value="SUPERADMIN">SUPERADMIN — full control</option>
+        </select>
+      </div>
+      <p class="field-error hidden rounded-lg bg-accent-rose/10 px-3 py-2 ring-1 ring-inset ring-accent-rose/25" data-error="_form"></p>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" class="btn-secondary" data-modal-close="newuser">Cancel</button>
+        <button type="submit" class="btn-primary">Create account</button>
+      </div>
+    </form>
+  </div>
 
   <script>
     // @ts-nocheck
-    import { listUsers, activateUser, deactivateUser } from '@lib/api/users';
+    import {
+      listUsers, activateUser, deactivateUser,
+      createUser, promoteUser, demoteUser, eradicateUser,
+    } from '@lib/api/users';
+    import { loadSession } from '@lib/auth/volatileSession';
+    import { humanizeStamp } from '@lib/utils/stamp';
     import { escapeHtml } from '@lib/security/sanitize';
 
     const tbody = document.getElementById('rows');
-    let pending = null;
+    const emptyState = document.getElementById('empty-state');
+    const search = document.getElementById('user-search');
+    const roleFilter = document.getElementById('role-filter');
 
-    function chipFor(type) {
-      if (type === 'SUPERADMIN') return 'chip-super';
-      if (type === 'ADMIN') return 'chip-admin';
-      return 'chip-user';
-    }
+    let all = [];
+    let isSuper = false;
+    let nameById = new Map();
+
+    function chipFor(t) { return t === 'SUPERADMIN' ? 'chip-super' : t === 'ADMIN' ? 'chip-admin' : 'chip-user'; }
     function statusChip(s) { return s === 'ACTIVE' ? 'chip-active' : 'chip-inactive'; }
+    const nameOf = (id) => nameById.get(id);
 
-    function openModal() {
-      document.querySelector('[data-modal="user-confirm"]').classList.remove('hidden');
-      document.querySelector('[data-modal-backdrop="user-confirm"]').classList.remove('hidden');
+    // ── Modal helpers (toggle `hidden` only — panel centers itself) ──────
+    let openId = null;
+    function open(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.remove('hidden');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      openId = id;
     }
-    function closeModal() {
-      document.querySelector('[data-modal="user-confirm"]').classList.add('hidden');
-      document.querySelector('[data-modal-backdrop="user-confirm"]').classList.add('hidden');
+    function close(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.add('hidden');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.add('hidden');
+      document.body.style.overflow = '';
+      if (openId === id) openId = null;
     }
-    document.querySelectorAll('[data-modal-close]').forEach((b) => b.addEventListener('click', closeModal));
-    document.querySelectorAll('[data-modal-backdrop]').forEach((b) => b.addEventListener('click', closeModal));
+    document.querySelectorAll('[data-modal-close]').forEach((b) =>
+      b.addEventListener('click', () => close(b.getAttribute('data-modal-close'))));
+    document.querySelectorAll('[data-modal-backdrop]').forEach((b) =>
+      b.addEventListener('click', () => close(b.getAttribute('data-modal-backdrop'))));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId) close(openId); });
+
+    // ── Confirm helper ───────────────────────────────────────────────────
+    function confirmAction({ title, message, label, danger, onOk }) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-msg').textContent = message;
+      const ok = document.getElementById('confirm-ok');
+      ok.textContent = label;
+      ok.className = danger ? 'btn-danger' : 'btn-primary';
+      ok.disabled = false;
+      // Assigning onclick replaces any prior handler — no stacking across opens.
+      ok.onclick = async () => {
+        ok.disabled = true;
+        try { await onOk(); close('confirm'); await refresh(); }
+        catch (e) { alert(e?.message ?? 'Action failed.'); ok.disabled = false; }
+      };
+      open('confirm');
+    }
+
+    function stats(list) {
+      const set = (k, v) => { const el = document.querySelector(`[data-stat="${k}"]`); if (el) el.textContent = String(v); };
+      set('total', list.length);
+      set('active', list.filter((u) => u.recordStatus === 'ACTIVE').length);
+      set('admins', list.filter((u) => u.userType === 'ADMIN' || u.userType === 'SUPERADMIN').length);
+      set('inactive', list.filter((u) => u.recordStatus === 'INACTIVE').length);
+    }
+
+    function view() {
+      const q = (search.value || '').trim().toLowerCase();
+      const role = roleFilter.value;
+      return all.filter((u) => {
+        if (role && u.userType !== role) return false;
+        if (!q) return true;
+        return [u.firstName, u.lastName, u.username, u.email]
+          .some((v) => String(v || '').toLowerCase().includes(q));
+      });
+    }
+
+    function render() {
+      const rows = view();
+      if (!rows.length) { tbody.innerHTML = ''; emptyState.classList.remove('hidden'); return; }
+      emptyState.classList.add('hidden');
+      tbody.innerHTML = rows.map((u) => {
+        const isSA = u.userType === 'SUPERADMIN';
+        const locked = isSA && !isSuper;            // non-super can't touch SUPERADMIN
+        const inactive = u.recordStatus === 'INACTIVE';
+        const statusBtn = locked ? '' : `
+          <button class="btn-ghost h-8 px-2.5 text-xs" data-act="${inactive ? 'activate' : 'deactivate'}"
+                  data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">
+            ${inactive ? 'Activate' : 'Deactivate'}</button>`;
+        const roleBtns = (isSuper && !locked) ? `
+          ${u.userType !== 'SUPERADMIN' ? `<button class="btn-ghost h-8 px-2.5 text-xs" data-act="promote" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Promote</button>` : ''}
+          ${u.userType !== 'USER' ? `<button class="btn-ghost h-8 px-2.5 text-xs" data-act="demote" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Demote</button>` : ''}
+          <button class="btn-ghost h-8 px-2.5 text-xs text-accent-rose hover:bg-accent-rose/10" data-act="eradicate" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Eradicate</button>` : '';
+        return `
+          <tr class="${isSA ? 'bg-accent-amber/[0.03]' : ''}">
+            <td>
+              <div class="font-medium">${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}</div>
+              <div class="text-xs text-ink-dim">@${escapeHtml(u.username)}</div>
+            </td>
+            <td class="text-sm text-ink-muted">${escapeHtml(u.email ?? '')}</td>
+            <td><span class="${chipFor(u.userType)}">${escapeHtml(u.userType ?? '—')}</span></td>
+            <td><span class="${statusChip(u.recordStatus)}">${escapeHtml(u.recordStatus ?? '—')}</span></td>
+            <td class="text-xs text-ink-muted">${escapeHtml(humanizeStamp(u.stamp, nameOf))}</td>
+            <td>
+              <div class="flex items-center justify-end gap-1">
+                ${statusBtn}${roleBtns || (locked ? '<span class="text-2xs text-ink-dim">Protected</span>' : '')}
+              </div>
+            </td>
+          </tr>`;
+      }).join('');
+    }
 
     async function refresh() {
       try {
         const rows = await listUsers();
-        tbody.innerHTML = rows.map((u) => {
-          const protectedRow = u.user_type === 'SUPERADMIN';
-          const isInactive = u.record_status === 'INACTIVE';
-          const action = isInactive ? 'Activate' : 'Deactivate';
-          return `
-            <tr ${protectedRow ? 'class="bg-accent-amber/[0.03]"' : ''}>
-              <td>
-                <div class="font-medium">${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}</div>
-                <div class="text-xs text-ink-dim">@${escapeHtml(u.username)}</div>
-              </td>
-              <td class="text-sm text-ink-muted">${escapeHtml(u.email ?? '')}</td>
-              <td><span class="${chipFor(u.user_type)}">${escapeHtml(u.user_type)}</span></td>
-              <td><span class="${statusChip(u.record_status)}">${escapeHtml(u.record_status)}</span></td>
-              <td class="text-xs text-ink-dim font-mono">${escapeHtml(u.stamp ?? '')}</td>
-              <td class="text-right">
-                <button
-                  class="btn-secondary h-8 px-3 text-xs"
-                  ${protectedRow ? 'disabled' : ''}
-                  title="${protectedRow ? 'SUPERADMIN accounts cannot be modified' : ''}"
-                  data-action="${escapeHtml(action.toLowerCase())}"
-                  data-user="${escapeHtml(u.userId)}"
-                  data-label="${escapeHtml(u.username)}">
-                  ${escapeHtml(action)}
-                </button>
-              </td>
-            </tr>`;
-        }).join('');
+        all = rows;
+        nameById = new Map(rows.map((u) => [u.userId, `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim()]));
+        stats(rows);
+        render();
       } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed.')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed to load users.')}</td></tr>`;
       }
     }
 
+    // ── Row action delegation ────────────────────────────────────────────
     tbody.addEventListener('click', (e) => {
-      const t = e.target.closest('[data-action][data-user]');
-      if (!t || t.disabled) return;
-      pending = { action: t.getAttribute('data-action'), userId: t.getAttribute('data-user') };
-      const label = t.getAttribute('data-label');
-      const titleEl = document.querySelector('#user-confirm [id$="-title"]');
-      const msgEl = document.querySelector('#user-confirm [data-confirm-message]');
-      const okBtn = document.querySelector('[data-confirm="user-confirm"]');
-      titleEl.textContent = pending.action === 'activate' ? 'Activate account?' : 'Deactivate account?';
-      msgEl.textContent = `${pending.action === 'activate' ? 'Activate' : 'Deactivate'} @${label}? This is a reversible record_status update — never a delete.`;
-      okBtn.textContent = pending.action === 'activate' ? 'Activate' : 'Deactivate';
-      okBtn.classList.toggle('btn-danger', pending.action === 'deactivate');
-      okBtn.classList.toggle('btn-primary', pending.action === 'activate');
-      openModal();
-    });
+      const t = e.target.closest('[data-act][data-id]');
+      if (!t) return;
+      const act = t.getAttribute('data-act');
+      const id = t.getAttribute('data-id');
+      const name = t.getAttribute('data-name');
 
-    document.querySelector('[data-confirm="user-confirm"]')?.addEventListener('click', async () => {
-      if (!pending) return;
-      try {
-        if (pending.action === 'activate') await activateUser(pending.userId);
-        else await deactivateUser(pending.userId);
-        closeModal();
-        await refresh();
-      } catch (e) {
-        alert(e?.message ?? 'Action failed.');
+      if (act === 'activate' || act === 'deactivate') {
+        confirmAction({
+          title: act === 'activate' ? 'Activate account?' : 'Deactivate account?',
+          message: `${act === 'activate' ? 'Activate' : 'Deactivate'} @${name}? This is a reversible record_status change — never a delete.`,
+          label: act === 'activate' ? 'Activate' : 'Deactivate',
+          danger: act === 'deactivate',
+          onOk: () => (act === 'activate' ? activateUser(id) : deactivateUser(id)),
+        });
+      } else if (act === 'promote' || act === 'demote') {
+        confirmAction({
+          title: act === 'promote' ? 'Promote user?' : 'Demote user?',
+          message: `${act === 'promote' ? 'Promote' : 'Demote'} @${name}? Their rights are realigned to the new role immediately.`,
+          label: act === 'promote' ? 'Promote' : 'Demote',
+          danger: act === 'demote',
+          onOk: () => (act === 'promote' ? promoteUser(id) : demoteUser(id)),
+        });
+      } else if (act === 'eradicate') {
+        const word = name;
+        document.getElementById('erad-who').textContent = `@${name}`;
+        document.getElementById('erad-confirm-word').textContent = word;
+        const input = document.getElementById('erad-input');
+        const ok = document.getElementById('erad-ok');
+        input.value = ''; input.placeholder = word; ok.disabled = true;
+        input.oninput = () => { ok.disabled = input.value.trim() !== word; };
+        ok.onclick = async () => {
+          ok.disabled = true;
+          try { await eradicateUser(id); close('erad'); await refresh(); }
+          catch (err) { alert(err?.message ?? 'Eradicate failed.'); ok.disabled = false; }
+        };
+        open('erad');
       }
     });
 
-    refresh();
+    // ── New user ─────────────────────────────────────────────────────────
+    document.getElementById('new-user-btn')?.addEventListener('click', () => open('newuser'));
+    const nuForm = document.getElementById('newuser-form');
+    nuForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = nuForm.querySelector('[data-error="_form"]');
+      err.classList.add('hidden');
+      const d = new FormData(nuForm);
+      try {
+        await createUser({
+          firstName: String(d.get('firstName') || '').trim(),
+          lastName: String(d.get('lastName') || '').trim(),
+          username: String(d.get('username') || '').trim(),
+          email: String(d.get('email') || '').trim(),
+          userType: String(d.get('userType') || 'USER'),
+        });
+        close('newuser'); nuForm.reset(); await refresh();
+      } catch (ex) {
+        err.textContent = ex?.message ?? 'Could not create the account.';
+        err.classList.remove('hidden');
+      }
+    });
+
+    // ── Boot ─────────────────────────────────────────────────────────────
+    search.addEventListener('input', render);
+    roleFilter.addEventListener('change', render);
+    (async () => {
+      const session = await loadSession();
+      isSuper = session?.userType === 'SUPERADMIN';
+      if (isSuper) document.querySelectorAll('[data-sa]').forEach((el) => el.classList.remove('hidden'));
+      await refresh();
+    })().catch(console.error);
   </script>
 </AppShell>

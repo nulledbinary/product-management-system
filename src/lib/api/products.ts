@@ -77,9 +77,11 @@ export async function updateProduct(input: ProductInput) {
 
 export async function softDeleteProduct(prodCode: string) {
   matchOrThrow(prodCode, PATTERNS.prodCode, 'prodCode');
+  // Backend PatchRequest binds `recordStatus` (camelCase); sending
+  // `record_status` left it null and silently fell through to the edit path.
   return request<{ ok: true }>(`/products/${encodeURIComponent(prodCode)}`, {
     method: 'PATCH',
-    body: { record_status: 'INACTIVE' },
+    body: { recordStatus: 'INACTIVE' },
   });
 }
 
@@ -87,6 +89,6 @@ export async function recoverProduct(prodCode: string) {
   matchOrThrow(prodCode, PATTERNS.prodCode, 'prodCode');
   return request<{ ok: true }>(`/products/${encodeURIComponent(prodCode)}`, {
     method: 'PATCH',
-    body: { record_status: 'ACTIVE' },
+    body: { recordStatus: 'ACTIVE' },
   });
 }

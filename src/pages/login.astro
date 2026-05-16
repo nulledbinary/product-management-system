@@ -22,12 +22,15 @@ const banner = reason ? reasonText[reason] : null;
 
         <div class="space-y-8">
           <div class="space-y-5">
-            <span class="chip-user">Secure · Role-aware · Audit-stamped</span>
-            <h1 class="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-balance">
+            <span class="chip-user animate-fade-in inline-flex">
+              <span class="mr-1 h-1.5 w-1.5 rounded-full bg-accent-mint animate-dot"></span>
+              Secure · Role-aware · Audit-stamped
+            </span>
+            <h1 class="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-balance animate-rise">
               Manage your product universe with
               <span class="grad-text">surgical precision</span>.
             </h1>
-            <p class="max-w-md text-base leading-relaxed text-ink-muted text-pretty">
+            <p class="max-w-md text-base leading-relaxed text-ink-muted text-pretty animate-rise delay-1">
               Role-aware, audit-stamped, and zero-hard-delete by design. Built on
               Astro &amp; AWS — secured by Auth0, ready for production.
             </p>
@@ -39,12 +42,12 @@ const banner = reason ? reasonText[reason] : null;
               ['Server-side sessions', 'M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z'],
               ['Per-right access control', 'M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z'],
               ['Soft-delete & recovery', 'M3 7h18M9 7V4h6v3M6 7l1 14h10l1-14'],
-            ].map(([label, d]) => (
-              <li class="glass flex items-center gap-3 !rounded-xl px-4 py-3">
-                <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/15 text-brand-300">
+            ].map(([label, d], i) => (
+              <li class="feature-line" style={`animation-delay:${180 + i * 110}ms`}>
+                <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-ink ring-1 ring-inset ring-white/15 transition-transform duration-300 group-hover:scale-105">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d={d} /></svg>
                 </span>
-                <span class="text-sm font-medium text-ink-muted">{label}</span>
+                <span class="relative text-sm font-medium">{label}</span>
               </li>
             ))}
           </ul>
@@ -99,7 +102,7 @@ const banner = reason ? reasonText[reason] : null;
 
           <p class="mt-7 text-center text-sm text-ink-muted">
             Don't have an account?
-            <a href="/register" class="font-medium text-brand-300 hover:text-brand-200 transition-colors">Register</a>
+            <a href="/register" class="font-medium text-ink underline decoration-white/30 underline-offset-4 hover:decoration-white transition-colors">Register</a>
           </p>
         </div>
       </section>
