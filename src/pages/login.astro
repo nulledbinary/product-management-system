@@ -18,23 +18,42 @@ const banner = reason ? reasonText[reason] : null;
   <main class="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
     <div class="grid w-full gap-10 lg:grid-cols-2 lg:gap-16">
       <section class="hidden flex-col justify-between lg:flex">
-        <Logo />
+        <Logo href={null} />
 
-        <div class="space-y-7">
-          <h1 class="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-balance">
-            Manage your product universe with
-            <span class="grad-text">surgical precision</span>.
-          </h1>
-          <p class="max-w-md text-base leading-relaxed text-ink-muted text-pretty">
-            Role-aware, audit-stamped, and zero-hard-delete by design. Built on
-            Astro &amp; AWS — secured by Auth0, ready for production.
-          </p>
+        <div class="space-y-8">
+          <div class="space-y-5">
+            <span class="chip-user">Secure · Role-aware · Audit-stamped</span>
+            <h1 class="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-balance">
+              Manage your product universe with
+              <span class="grad-text">surgical precision</span>.
+            </h1>
+            <p class="max-w-md text-base leading-relaxed text-ink-muted text-pretty">
+              Role-aware, audit-stamped, and zero-hard-delete by design. Built on
+              Astro &amp; AWS — secured by Auth0, ready for production.
+            </p>
+          </div>
+
+          <ul class="grid max-w-md gap-3 sm:grid-cols-2">
+            {[
+              ['Auth0 + Google SSO', 'M9 12l2 2 4-4'],
+              ['Server-side sessions', 'M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z'],
+              ['Per-right access control', 'M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z'],
+              ['Soft-delete & recovery', 'M3 7h18M9 7V4h6v3M6 7l1 14h10l1-14'],
+            ].map(([label, d]) => (
+              <li class="glass flex items-center gap-3 !rounded-xl px-4 py-3">
+                <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/15 text-brand-300">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d={d} /></svg>
+                </span>
+                <span class="text-sm font-medium text-ink-muted">{label}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
       <section class="flex items-center justify-center">
         <div class="glass-strong w-full max-w-md p-8 sm:p-10 animate-fade-in">
-          <div class="mb-6 lg:hidden"><Logo /></div>
+          <div class="mb-6 lg:hidden"><Logo href={null} /></div>
 
           <header class="mb-7">
             <h2 class="font-display text-2xl font-semibold tracking-tight">Welcome back</h2>
