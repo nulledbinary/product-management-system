@@ -25,31 +25,58 @@
   html {
     @apply bg-bg-deep text-ink antialiased;
     font-feature-settings: 'cv11', 'ss01', 'ss03';
+    scroll-behavior: smooth;
   }
   body {
-    @apply font-sans selection:bg-brand-500/40 selection:text-white;
+    @apply font-sans selection:bg-white selection:text-black;
     background:
-      radial-gradient(80% 50% at 50% -10%, rgba(58,91,255,0.18) 0%, rgba(58,91,255,0) 55%),
-      radial-gradient(60% 45% at 90% 10%, rgba(139,92,246,0.16) 0%, rgba(139,92,246,0) 60%),
-      radial-gradient(70% 55% at 0% 80%, rgba(34,211,238,0.10) 0%, rgba(34,211,238,0) 60%),
-      #05070f;
+      radial-gradient(90% 60% at 50% -20%, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 55%),
+      radial-gradient(50% 40% at 100% 0%, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 60%),
+      #060607;
     min-height: 100vh;
   }
-  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  /* Subtle film-grain so flat black never looks dead. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  }
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.10);
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: padding-box;
   }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); background-clip: padding-box; }
 
-  /* Focus ring — visible but on-brand */
   *:focus-visible {
-    outline: 2px solid theme('colors.brand.400');
+    outline: 2px solid rgba(255,255,255,0.65);
     outline-offset: 2px;
     border-radius: 6px;
+  }
+
+  /* Native select + its option list — was invisible white-on-white before. */
+  select.field {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #161617;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+    padding-right: 2.4rem;
+    cursor: pointer;
+  }
+  select.field option,
+  select.field optgroup {
+    background-color: #161617;
+    color: #fafafa;
   }
 }
 
@@ -62,7 +89,6 @@
     @apply relative bg-bg-surface backdrop-blur-2xl border border-line-strong shadow-glass rounded-2xl;
   }
 
-  /* ─── Brand gradient text ───────────────────────────────────────────── */
   .grad-text {
     @apply bg-brand-grad bg-clip-text text-transparent;
   }
@@ -73,28 +99,28 @@
   }
   .chip-active { @apply chip bg-accent-mint/10 text-accent-mint ring-1 ring-inset ring-accent-mint/30; }
   .chip-inactive { @apply chip bg-accent-rose/10 text-accent-rose ring-1 ring-inset ring-accent-rose/30; }
-  .chip-admin { @apply chip bg-accent-violet/10 text-accent-violet ring-1 ring-inset ring-accent-violet/30; }
+  .chip-admin { @apply chip bg-white/10 text-ink ring-1 ring-inset ring-white/25; }
   .chip-super { @apply chip bg-accent-amber/10 text-accent-amber ring-1 ring-inset ring-accent-amber/30; }
-  .chip-user { @apply chip bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/30; }
+  .chip-user { @apply chip bg-white/[0.06] text-ink-muted ring-1 ring-inset ring-line-strong; }
 
   /* ─── Buttons ───────────────────────────────────────────────────────── */
   .btn {
     @apply inline-flex items-center justify-center gap-2 select-none whitespace-nowrap
            rounded-xl px-4 py-2.5 text-sm font-medium
            transition-all duration-200 ease-spring
-           disabled:opacity-50 disabled:pointer-events-none;
+           disabled:opacity-40 disabled:pointer-events-none;
   }
   .btn-primary {
-    @apply btn text-white bg-brand-grad shadow-glow
-           hover:brightness-110 hover:-translate-y-px
-           active:translate-y-0 active:brightness-95;
+    @apply btn text-black bg-white shadow-glow
+           hover:-translate-y-px hover:shadow-[0_18px_50px_-12px_rgba(255,255,255,0.35)]
+           active:translate-y-0 active:brightness-90;
   }
   .btn-secondary {
-    @apply btn bg-white/5 text-ink border border-line
-           hover:bg-white/10 hover:border-line-strong;
+    @apply btn bg-white/[0.04] text-ink border border-line
+           hover:bg-white/[0.09] hover:border-line-strong;
   }
   .btn-ghost {
-    @apply btn bg-transparent text-ink-muted hover:text-ink hover:bg-white/5;
+    @apply btn bg-transparent text-ink-muted hover:text-ink hover:bg-white/[0.06];
   }
   .btn-danger {
     @apply btn bg-accent-rose/15 text-accent-rose border border-accent-rose/30
@@ -110,7 +136,7 @@
     @apply block w-full rounded-xl bg-white/[0.04] border border-line
            px-4 py-3 text-sm text-ink placeholder:text-ink-dim
            transition-all duration-200
-           focus:bg-white/[0.06] focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20
+           focus:bg-white/[0.07] focus:border-white/40 focus:ring-2 focus:ring-white/15
            disabled:opacity-50;
   }
   .field-label {
@@ -130,6 +156,10 @@
   .card-tight {
     @apply glass p-4 animate-fade-in;
   }
+  .card-hover {
+    @apply transition-all duration-300 ease-spring
+           hover:-translate-y-0.5 hover:border-line-strong hover:bg-white/[0.04];
+  }
 
   /* ─── Tables ────────────────────────────────────────────────────────── */
   .data-table {
@@ -140,36 +170,48 @@
            border-b border-line bg-white/[0.02];
   }
   .data-table tbody td {
-    @apply px-4 py-3 text-ink border-b border-line/50;
+    @apply px-4 py-3 text-ink border-b border-line/60;
   }
   .data-table tbody tr {
-    @apply transition-colors hover:bg-white/[0.03];
+    @apply transition-colors hover:bg-white/[0.035];
   }
 
   /* ─── Sidebar / Nav ─────────────────────────────────────────────────── */
   .nav-item {
-    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink-muted
+    @apply relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink-muted
            transition-all duration-200
-           hover:text-ink hover:bg-white/5;
+           hover:text-ink hover:bg-white/[0.05];
   }
   .nav-item-active {
-    @apply nav-item text-ink bg-white/[0.06] shadow-ring;
+    @apply nav-item text-ink bg-white/[0.07];
+  }
+  /* Sliding active indicator — animated via JS by moving this element. */
+  #nav-indicator {
+    @apply pointer-events-none absolute left-1 w-[3px] rounded-full bg-white;
+    transition: top 320ms cubic-bezier(0.22,1,0.36,1),
+                height 320ms cubic-bezier(0.22,1,0.36,1),
+                opacity 200ms ease;
+    box-shadow: 0 0 14px 1px rgba(255,255,255,0.5);
   }
 
   /* ─── Shimmer skeleton ──────────────────────────────────────────────── */
   .skeleton {
-    background: linear-gradient(110deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.04) 75%);
+    background: linear-gradient(110deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.11) 50%, rgba(255,255,255,0.04) 75%);
     background-size: 200% 100%;
     @apply animate-shimmer rounded-md;
   }
 
-  /* ─── Modal backdrop ────────────────────────────────────────────────── */
+  /* ─── Modal ─────────────────────────────────────────────────────────── */
   .modal-backdrop {
-    @apply fixed inset-0 z-40 bg-black/60 backdrop-blur-sm;
+    @apply fixed inset-0 z-40 bg-black/70 backdrop-blur-sm;
+    animation: fade-in 200ms ease-out both;
   }
+  /* Centering lives in the keyframe's end-state so the entrance animation
+     can't clobber the -translate-x/y that keeps the panel centered. */
   .modal-panel {
-    @apply glass-strong fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2
-           w-[min(560px,92vw)] p-7 animate-fade-in;
+    @apply glass-strong fixed left-1/2 top-1/2 z-50
+           w-[min(560px,92vw)] max-h-[88vh] overflow-y-auto p-7;
+    animation: modal-in 220ms cubic-bezier(0.22,1,0.36,1) both;
   }
 
   /* ─── Divider with text ─────────────────────────────────────────────── */
@@ -181,14 +223,42 @@
     @apply flex-1 h-px bg-line;
   }
   .divider-text > span { @apply px-3; }
+
+  /* ─── Animated feature row (login marketing list) ───────────────────── */
+  .feature-line {
+    @apply relative flex items-center gap-3 rounded-xl border border-line bg-white/[0.025]
+           px-4 py-3 text-sm text-ink-muted overflow-hidden;
+    animation: rise 620ms cubic-bezier(0.22,1,0.36,1) both;
+  }
+  .feature-line::after {
+    content: '';
+    @apply absolute inset-0 pointer-events-none;
+    background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.10) 50%, transparent 65%);
+    background-size: 220% 100%;
+    animation: sheen 3.4s ease-in-out infinite;
+  }
+  .feature-line:hover { @apply border-line-strong text-ink bg-white/[0.05]; }
 }
 
 @layer utilities {
   .text-balance { text-wrap: balance; }
   .text-pretty { text-wrap: pretty; }
+  /* Staggered reveal: parent gets .reveal, children animate in sequence. */
+  .reveal > * { animation: rise 600ms cubic-bezier(0.22,1,0.36,1) both; }
+  .reveal > *:nth-child(1) { animation-delay: 40ms; }
+  .reveal > *:nth-child(2) { animation-delay: 110ms; }
+  .reveal > *:nth-child(3) { animation-delay: 180ms; }
+  .reveal > *:nth-child(4) { animation-delay: 250ms; }
+  .reveal > *:nth-child(5) { animation-delay: 320ms; }
+  .reveal > *:nth-child(6) { animation-delay: 390ms; }
+  .delay-1 { animation-delay: 80ms; }
+  .delay-2 { animation-delay: 160ms; }
+  .delay-3 { animation-delay: 240ms; }
+  .delay-4 { animation-delay: 320ms; }
 }
 
 /* Reduced motion respect */
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  html { scroll-behavior: auto; }
 }

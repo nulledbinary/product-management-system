@@ -92,7 +92,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
 
   <!-- ─── Price history drawer ──────────────────────────────────────── -->
   <div id="history-drawer" class="modal-backdrop hidden" data-modal-backdrop="history-drawer"></div>
-  <aside id="history-panel" class="fixed right-0 top-0 z-50 h-full w-[min(440px,92vw)] glass-strong rounded-none border-l border-line p-6 hidden flex-col gap-4" data-modal="history-drawer">
+  <aside id="history-panel" class="fixed right-0 top-0 z-50 flex h-full w-[min(440px,92vw)] flex-col gap-4 glass-strong rounded-none border-l border-line p-6 hidden animate-fade-in" data-modal="history-drawer">
     <header class="flex items-start justify-between">
       <div>
         <p class="text-2xs font-semibold uppercase tracking-wider text-ink-dim">Price history</p>
@@ -115,6 +115,8 @@ import ConfirmModal from '@components/ConfirmModal.astro';
     import { canSeeStamp, useRights } from '@lib/auth/rights';
     import { escapeHtml } from '@lib/security/sanitize';
     import { ValidationError } from '@lib/security/pathGuard';
+    import { ApiError } from '@lib/api/client';
+    import { humanizeStamp } from '@lib/utils/stamp';
 
     const tbody = document.getElementById('rows');
     const emptyState = document.getElementById('empty-state');
@@ -149,7 +151,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
           </td>
           <td><span class="chip-user">${escapeHtml(p.unit)}</span></td>
           <td class="text-right font-mono text-sm">${escapeHtml(fmtPrice(p.currentPrice))}</td>
-          ${showStamp ? `<td class="text-xs text-ink-dim font-mono">${escapeHtml(p.stamp ?? '')}</td>` : ''}
+          ${showStamp ? `<td class="text-xs text-ink-muted">${escapeHtml(humanizeStamp(p.stamp))}</td>` : ''}
           <td>
             <div class="flex items-center justify-end gap-1">
               ${can('PRD_EDIT') ? `<button class="btn-ghost h-8 px-2.5 text-xs" data-edit="${escapeHtml(p.prodCode)}">Edit</button>` : ''}
@@ -174,7 +176,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
       document.querySelector('[data-stat="units"]').textContent = String(units.size);
       const latest = [...list].sort((a, b) => (b.stamp ?? '').localeCompare(a.stamp ?? ''))[0];
       document.querySelector('[data-stat="latest"]').textContent = latest ? `${latest.prodCode} · ${latest.description}` : '—';
-      document.querySelector('[data-stat="latestWhen"]').textContent = latest?.stamp ?? '';
+      document.querySelector('[data-stat="latestWhen"]').textContent = latest?.stamp ? humanizeStamp(latest.stamp) : '';
     }
 
     async function refresh() {
@@ -190,19 +192,28 @@ import ConfirmModal from '@components/ConfirmModal.astro';
     }
 
     // ── Modal helpers ─────────────────────────────────────────────────
+    // Only toggle `hidden` — adding `flex`/`block` previously broke both
+    // the panel's internal layout and its translate-based centering.
+    let openModalId = null;
     function openModal(id) {
-      document.querySelector(`[data-modal="${id}"]`)?.classList.replace('hidden', 'flex');
-      document.querySelector(`[data-modal="${id}"]`)?.classList.add('block');
+      document.querySelector(`[data-modal="${id}"]`)?.classList.remove('hidden');
       document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      openModalId = id;
     }
     function closeModal(id) {
       document.querySelector(`[data-modal="${id}"]`)?.classList.add('hidden');
       document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.add('hidden');
+      document.body.style.overflow = '';
+      if (openModalId === id) openModalId = null;
     }
     document.querySelectorAll('[data-modal-close]').forEach((b) =>
       b.addEventListener('click', () => closeModal(b.getAttribute('data-modal-close'))));
     document.querySelectorAll('[data-modal-backdrop]').forEach((b) =>
       b.addEventListener('click', () => closeModal(b.getAttribute('data-modal-backdrop'))));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && openModalId) closeModal(openModalId);
+    });
 
     function showFormError(form, field, msg) {
       const el = form.querySelector(`[data-error="${field}"]`);
@@ -231,8 +242,14 @@ import ConfirmModal from '@components/ConfirmModal.astro';
       } catch (e) {
         if (e instanceof ValidationError) {
           showFormError(form, e.field, e.message);
+        } else if (e instanceof ApiError) {
+          const msg = e.code === 'server_error'
+            ? 'The server rejected this product. Check the code is two letters + four digits (e.g. AK0001) and the price is valid.'
+            : (e.message || 'Could not save this product.');
+          const onCode = /code|prodcode/i.test(e.message || '');
+          showFormError(form, onCode ? 'prodCode' : '_form', msg);
         } else {
-          showFormError(form, 'description', e?.message ?? 'Could not save.');
+          showFormError(form, '_form', e?.message ?? 'Could not save.');
         }
       }
     }
@@ -303,7 +320,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
                 <p class="text-2xs font-medium uppercase tracking-wider text-ink-dim">${escapeHtml(r.effDate)}</p>
                 <p class="mt-0.5 font-mono text-sm">${escapeHtml(new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(r.unitPrice)))}</p>
               </div>
-              ${showStamp && r.stamp ? `<span class="text-2xs text-ink-dim font-mono">${escapeHtml(r.stamp)}</span>` : ''}
+              ${showStamp && r.stamp ? `<span class="text-2xs text-ink-dim">${escapeHtml(humanizeStamp(r.stamp))}</span>` : ''}
             </li>`)
           .join('');
       } catch (e) {

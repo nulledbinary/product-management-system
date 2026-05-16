@@ -81,7 +81,7 @@ export function assertNoTraversal(input: unknown, field: string): asserts input 
  * outright at the boundary.
  */
 export const PATTERNS = {
-  prodCode: /^[A-Z0-9]{2,6}$/,                 // e.g. AK0001
+  prodCode: /^[A-Z]{2}\d{4}$/,                 // two letters + four digits, e.g. AK0001
   unit: /^(pc|ea|mtr|pkg|ltr)$/,
   username: /^[A-Za-z0-9_.-]{3,32}$/,
   name: /^[A-Za-z][A-Za-z' -]{0,49}$/,         // first/last name

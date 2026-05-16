@@ -20,7 +20,7 @@ const {
     <meta name="description" content={description} />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    <meta name="theme-color" content="#05070f" />
+    <meta name="theme-color" content="#000000" />
 
     <link rel="preconnect" href="https://rsms.me/" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -30,9 +30,10 @@ const {
   <body class={variant === 'hero' ? 'overflow-x-hidden' : ''}>
     {variant === 'hero' && (
       <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div class="absolute -top-40 left-1/2 h-[680px] w-[1100px] -translate-x-1/2 rounded-full bg-mesh-hero blur-[60px] opacity-90"></div>
-        <div class="absolute bottom-[-200px] right-[-160px] h-[420px] w-[420px] rounded-full bg-accent-violet/15 blur-3xl"></div>
-        <div class="absolute top-[40%] left-[-120px] h-[380px] w-[380px] rounded-full bg-brand-500/15 blur-3xl"></div>
+        <div class="absolute -top-48 left-1/2 h-[720px] w-[1200px] -translate-x-1/2 rounded-full bg-mesh-hero blur-[80px] opacity-90 animate-float"></div>
+        <div class="absolute bottom-[-220px] right-[-180px] h-[440px] w-[440px] rounded-full bg-white/[0.05] blur-3xl"></div>
+        <div class="absolute top-[42%] left-[-140px] h-[400px] w-[400px] rounded-full bg-white/[0.04] blur-3xl"></div>
+        <div class="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(70%_60%_at_50%_0%,#000_30%,transparent_75%)]"></div>
       </div>
     )}
     <slot />

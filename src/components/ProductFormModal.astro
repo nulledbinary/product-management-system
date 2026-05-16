@@ -25,7 +25,10 @@ const isAdd = mode === 'add';
       <div>
         <label class="field-label">Product code</label>
         <input name="prodCode" class="field uppercase tracking-wider" required maxlength="6"
-               pattern="[A-Z0-9]{2,6}" placeholder="AK0001" {...(isAdd ? {} : { readonly: true })} />
+               pattern="[A-Za-z]{2}[0-9]{4}" placeholder="AK0001" autocomplete="off"
+               title="Two letters followed by four digits, e.g. AK0001"
+               {...(isAdd ? {} : { readonly: true })} />
+        {isAdd && <p class="field-help">2 letters + 4 digits — e.g. <span class="font-mono text-ink-muted">AK0001</span></p>}
         <p class="field-error hidden" data-error="prodCode"></p>
       </div>
       <div>
@@ -58,6 +61,8 @@ const isAdd = mode === 'add';
       </div>
       <p class="field-error hidden" data-error="unitPrice"></p>
     </div>
+
+    <p class="field-error hidden rounded-lg bg-accent-rose/10 px-3 py-2 ring-1 ring-inset ring-accent-rose/25" data-error="_form"></p>
 
     <div class="flex items-center justify-end gap-2 pt-2">
       <button type="button" class="btn-secondary" data-modal-close={id}>Cancel</button>

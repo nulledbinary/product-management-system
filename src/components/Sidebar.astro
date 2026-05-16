@@ -1,40 +1,37 @@
 ---
 import Logo from './ui/Logo.astro';
-const path = Astro.url.pathname;
-function isActive(p: string): boolean {
-  if (p === '/products') return path === '/products' || path.startsWith('/products/');
-  return path === p;
-}
 ---
 <aside
   id="app-sidebar"
-  class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-bg-deep/60 backdrop-blur-xl px-4 py-5 lg:flex"
+  class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-bg-deep/70 backdrop-blur-xl px-4 py-5 lg:flex"
 >
   <div class="px-2 pb-6"><Logo /></div>
 
-  <nav class="flex flex-col gap-1" data-nav>
+  <nav class="relative flex flex-col gap-1" data-nav>
+    <span id="nav-indicator" class="opacity-0" aria-hidden="true"></span>
+
     <p class="px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-dim">Products</p>
-    <a href="/products" class={isActive('/products') ? 'nav-item-active' : 'nav-item'}>
+    <a href="/products" class="nav-item" data-navlink="/products">
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
       Product List
     </a>
-    <a href="/products/deleted" data-right="deleted" class={isActive('/products/deleted') ? 'nav-item-active hidden' : 'nav-item hidden'}>
+    <a href="/products/deleted" data-right="deleted" data-navlink="/products/deleted" class="nav-item hidden">
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
       Deleted Items
     </a>
 
     <p class="mt-5 px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-dim">Reports</p>
-    <a href="/reports/product-listing" data-right="REP_001" class={isActive('/reports/product-listing') ? 'nav-item-active hidden' : 'nav-item hidden'}>
+    <a href="/reports/product-listing" data-right="REP_001" data-navlink="/reports/product-listing" class="nav-item hidden">
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17v-6"/><path d="M12 17V7"/><path d="M15 17v-4"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
       Product Listing
     </a>
-    <a href="/reports/top-selling" data-right="REP_002" class={isActive('/reports/top-selling') ? 'nav-item-active hidden' : 'nav-item hidden'}>
+    <a href="/reports/top-selling" data-right="REP_002" data-navlink="/reports/top-selling" class="nav-item hidden">
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
       Top Selling
     </a>
 
     <p class="mt-5 px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-dim">Admin</p>
-    <a href="/admin/users" data-right="ADM_USER" class={isActive('/admin/users') ? 'nav-item-active hidden' : 'nav-item hidden'}>
+    <a href="/admin/users" data-right="ADM_USER" data-navlink="/admin/users" class="nav-item hidden">
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
       Manage Users
     </a>
@@ -52,3 +49,52 @@ function isActive(p: string): boolean {
     </div>
   </div>
 </aside>
+
+<script>
+  // @ts-nocheck
+  // Dynamic, animated active indicator — follows the real route client-side
+  // and glides to whatever link the cursor is hovering, then snaps back.
+  (function () {
+    const nav = document.querySelector('[data-nav]');
+    if (!nav) return;
+    const indicator = nav.querySelector('#nav-indicator');
+    const links = Array.from(nav.querySelectorAll('[data-navlink]'));
+
+    function activeLink() {
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      let best = null;
+      let bestLen = -1;
+      for (const a of links) {
+        const href = a.getAttribute('data-navlink');
+        const match = path === href || path.startsWith(href + '/');
+        if (match && href.length > bestLen) { best = a; bestLen = href.length; }
+      }
+      return best;
+    }
+
+    function moveTo(el) {
+      if (!el || !indicator) return;
+      indicator.style.top = el.offsetTop + 6 + 'px';
+      indicator.style.height = Math.max(0, el.offsetHeight - 12) + 'px';
+      indicator.classList.remove('opacity-0');
+    }
+
+    function paint() {
+      const current = activeLink();
+      links.forEach((a) => a.classList.toggle('nav-item-active', a === current));
+      if (current) moveTo(current);
+      else if (indicator) indicator.classList.add('opacity-0');
+    }
+
+    links.forEach((a) => {
+      a.addEventListener('mouseenter', () => moveTo(a));
+    });
+    nav.addEventListener('mouseleave', () => moveTo(activeLink()));
+
+    // Re-run after rights-gated links are un-hidden by AppShell, and on resize.
+    requestAnimationFrame(paint);
+    setTimeout(paint, 400);
+    window.addEventListener('resize', paint);
+    window.addEventListener('pageshow', paint);
+  })();
+</script>

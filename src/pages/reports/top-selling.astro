@@ -1,24 +1,45 @@
 ---
 import AppShell from '@layouts/AppShell.astro';
 ---
-<AppShell title="Top selling" subtitle="REP_002 · SUPERADMIN-only ranking by quantity sold." requireRight="REP_002">
+<AppShell title="Top selling" subtitle="REP_002 · SUPERADMIN ranking by quantity sold." requireRight="REP_002">
   <section class="space-y-6">
-    <div class="card">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Window</p>
-          <p class="font-display text-lg font-medium">All time · Top 10</p>
+    <!-- ─── Summary strip ───────────────────────────────────────────── -->
+    <div class="grid gap-4 sm:grid-cols-4 reveal">
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Products ranked</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="count">—</p></div>
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Best seller</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="max">—</p><p class="mt-1 text-xs text-ink-dim truncate" data-stat="maxName"></p></div>
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Median sold</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="median">—</p><p class="mt-1 text-xs text-ink-dim">Half sell more, half less</p></div>
+      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Lowest mover</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="min">—</p><p class="mt-1 text-xs text-ink-dim truncate" data-stat="minName"></p></div>
+    </div>
+
+    <!-- ─── Audit controls ──────────────────────────────────────────── -->
+    <div class="card flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div class="relative max-w-xs flex-1">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="q" type="search" placeholder="Filter by code or name…" class="field pl-9" />
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="inline-flex rounded-xl border border-line p-1" role="tablist" aria-label="Sort order">
+          <button id="ord-desc" class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" aria-pressed="true">Most sold</button>
+          <button id="ord-asc"  class="rounded-lg px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors" aria-pressed="false">Least sold</button>
         </div>
-        <div id="legend" class="text-xs text-ink-dim"></div>
+        <select id="topn" class="field !py-2 !text-xs sm:w-32" aria-label="How many">
+          <option value="5">Top 5</option>
+          <option value="10" selected>Top 10</option>
+          <option value="25">Top 25</option>
+          <option value="100">All</option>
+        </select>
+        <button id="median-toggle" class="btn-secondary h-9 px-3 text-xs" aria-pressed="false">Mark median</button>
       </div>
     </div>
 
     <div class="card">
-      <ol id="bars" class="space-y-3">
-        {Array.from({ length: 5 }).map(() => (
-          <li class="skeleton h-10 rounded-xl"></li>
-        ))}
+      <ol id="bars" class="space-y-2.5">
+        {Array.from({ length: 6 }).map(() => (<li class="skeleton h-12 rounded-xl"></li>))}
       </ol>
+      <div id="empty" class="hidden py-12 text-center">
+        <p class="font-display text-base font-medium">Nothing to rank</p>
+        <p class="text-sm text-ink-dim">No sales match this filter yet.</p>
+      </div>
     </div>
   </section>
 
@@ -27,39 +48,104 @@ import AppShell from '@layouts/AppShell.astro';
     import { getTopSelling } from '@lib/api/users';
     import { escapeHtml } from '@lib/security/sanitize';
 
-    const list = document.getElementById('bars');
+    const wrap = document.getElementById('bars');
+    const empty = document.getElementById('empty');
+    const q = document.getElementById('q');
+    const topn = document.getElementById('topn');
+    const ordDesc = document.getElementById('ord-desc');
+    const ordAsc = document.getElementById('ord-asc');
+    const medianToggle = document.getElementById('median-toggle');
+
+    let raw = [];
+    let order = 'desc';     // 'desc' = most sold first, 'asc' = least sold first
+    let markMedian = false;
+    const nf = new Intl.NumberFormat();
+
+    function setStat(k, v) { const el = document.querySelector(`[data-stat="${k}"]`); if (el) el.textContent = v; }
+
+    function computeStats(list) {
+      if (!list.length) { ['count','max','min','median','maxName','minName'].forEach((k)=>setStat(k,'—')); return null; }
+      const sorted = [...list].sort((a, b) => b.totalQty - a.totalQty);
+      const top = sorted[0], bottom = sorted[sorted.length - 1];
+      const mid = Math.floor(sorted.length / 2);
+      const median = sorted.length % 2
+        ? sorted[mid].totalQty
+        : (sorted[mid - 1].totalQty + sorted[mid].totalQty) / 2;
+      setStat('count', nf.format(list.length));
+      setStat('max', nf.format(top.totalQty));
+      setStat('maxName', `${top.prodCode} · ${top.description}`);
+      setStat('min', nf.format(bottom.totalQty));
+      setStat('minName', `${bottom.prodCode} · ${bottom.description}`);
+      setStat('median', nf.format(median));
+      return { median, max: top.totalQty };
+    }
+
+    function render() {
+      const term = (q.value || '').trim().toLowerCase();
+      let list = raw.filter((r) =>
+        !term || r.prodCode.toLowerCase().includes(term) || r.description.toLowerCase().includes(term));
+
+      const meta = computeStats(list);
+      list = [...list].sort((a, b) => order === 'desc' ? b.totalQty - a.totalQty : a.totalQty - b.totalQty);
+      list = list.slice(0, Number(topn.value) || 10);
+
+      if (!list.length) { wrap.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      const max = meta ? meta.max : Math.max(...list.map((r) => r.totalQty), 1);
+
+      wrap.innerHTML = list.map((r, i) => {
+        const pct = Math.max(4, Math.round((r.totalQty / max) * 100));
+        const isMedian = markMedian && meta && r.totalQty === meta.median;
+        return `
+          <li class="group relative overflow-hidden rounded-xl border ${isMedian ? 'border-accent-amber/50' : 'border-line'} bg-white/[0.02] p-3 transition-colors hover:border-line-strong">
+            <div class="absolute inset-y-0 left-0 origin-left ${isMedian ? 'bg-accent-amber/20' : 'bg-white/[0.10]'} animate-bar-grow"
+                 style="width:${pct}%;animation-delay:${i * 45}ms"></div>
+            <div class="relative flex items-center justify-between gap-3">
+              <div class="flex min-w-0 items-center gap-3">
+                <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 font-display text-sm tabular-nums">${i + 1}</span>
+                <div class="min-w-0">
+                  <p class="font-mono text-2xs text-ink-dim">${escapeHtml(r.prodCode)}${isMedian ? ' · median' : ''}</p>
+                  <p class="truncate text-sm">${escapeHtml(r.description)}</p>
+                </div>
+              </div>
+              <div class="shrink-0 text-right">
+                <p class="font-display text-lg font-semibold tabular-nums">${nf.format(r.totalQty)}</p>
+                <p class="text-2xs uppercase tracking-wider text-ink-dim">units</p>
+              </div>
+            </div>
+          </li>`;
+      }).join('');
+    }
+
+    function setOrder(o) {
+      order = o;
+      const on = 'rounded-lg px-3 py-1.5 text-xs font-medium bg-white text-black transition-colors';
+      const off = 'rounded-lg px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors';
+      ordDesc.className = o === 'desc' ? on : off;
+      ordAsc.className = o === 'asc' ? on : off;
+      ordDesc.setAttribute('aria-pressed', String(o === 'desc'));
+      ordAsc.setAttribute('aria-pressed', String(o === 'asc'));
+      render();
+    }
+
+    ordDesc.addEventListener('click', () => setOrder('desc'));
+    ordAsc.addEventListener('click', () => setOrder('asc'));
+    topn.addEventListener('change', render);
+    q.addEventListener('input', render);
+    medianToggle.addEventListener('click', () => {
+      markMedian = !markMedian;
+      medianToggle.setAttribute('aria-pressed', String(markMedian));
+      medianToggle.classList.toggle('btn-success', markMedian);
+      medianToggle.classList.toggle('btn-secondary', !markMedian);
+      render();
+    });
 
     (async () => {
       try {
-        const rows = await getTopSelling(10);
-        if (!rows.length) {
-          list.innerHTML = '<li class="text-center text-sm text-ink-dim py-8">No sales data yet.</li>';
-          return;
-        }
-        const max = Math.max(...rows.map((r) => r.totalQty));
-        list.innerHTML = rows.map((r, i) => {
-          const pct = max > 0 ? Math.max(6, Math.round((r.totalQty / max) * 100)) : 6;
-          return `
-            <li class="relative overflow-hidden rounded-xl border border-line bg-white/[0.02] p-3">
-              <div class="absolute inset-y-0 left-0 bg-brand-grad opacity-25" style="width:${pct}%"></div>
-              <div class="relative flex items-center justify-between gap-3">
-                <div class="flex items-center gap-3 min-w-0">
-                  <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 font-display text-sm">${i + 1}</span>
-                  <div class="min-w-0">
-                    <p class="font-mono text-xs text-ink-dim">${escapeHtml(r.prodCode)}</p>
-                    <p class="text-sm truncate">${escapeHtml(r.description)}</p>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <p class="font-display text-lg font-semibold">${escapeHtml(String(r.totalQty))}</p>
-                  <p class="text-2xs text-ink-dim uppercase tracking-wider">units</p>
-                </div>
-              </div>
-            </li>`;
-        }).join('');
-        document.getElementById('legend').textContent = `Highest: ${max.toLocaleString()} units`;
+        raw = (await getTopSelling(100)).map((r) => ({ ...r, totalQty: Number(r.totalQty) || 0 }));
+        setOrder('desc');
       } catch (e) {
-        list.innerHTML = `<li class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed.')}</li>`;
+        wrap.innerHTML = `<li class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed to load ranking.')}</li>`;
       }
     })();
   </script>

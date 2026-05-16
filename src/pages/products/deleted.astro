@@ -53,6 +53,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
     // @ts-nocheck
     import { listProducts, recoverProduct } from '@lib/api/products';
     import { escapeHtml } from '@lib/security/sanitize';
+    import { humanizeStamp } from '@lib/utils/stamp';
 
     const tbody = document.getElementById('rows');
     const empty = document.getElementById('empty-state');
@@ -81,7 +82,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
           <td class="font-mono text-xs">${escapeHtml(p.prodCode)}</td>
           <td>${escapeHtml(p.description)}</td>
           <td><span class="chip-user">${escapeHtml(p.unit)}</span></td>
-          <td class="text-xs text-ink-dim font-mono">${escapeHtml(p.stamp ?? '')}</td>
+          <td class="text-xs text-ink-muted">${escapeHtml(humanizeStamp(p.stamp))}</td>
           <td class="text-right">
             <button class="btn-success h-8 px-3 text-xs" data-recover="${escapeHtml(p.prodCode)}">Recover</button>
           </td>
