@@ -3,207 +3,267 @@
 Hope, Inc. Product Management System (HopePMS). A secure, role-aware product
 management web app for the HopeDB schema.
 
-> Stack: **Astro 4 (SSR · Node adapter) · Tailwind CSS · Auth0 SPA · AWS Lambda · API Gateway · RDS PostgreSQL**
+> Stack: **Astro 4 (static, prerendered) · Tailwind CSS · Auth0 (server-side
+> Authorization Code + PKCE) · Spring Boot 3.4 / Java 21 · Amazon ECS Fargate ·
+> ElastiCache Redis · RDS PostgreSQL 16 · Terraform**
 
 ---
 
 ## Why this is structured this way
 
-This codebase implements [PROJECT_PLAN.md](./PROJECT_PLAN.md) — Astro + AWS
-edition. The business rules (no-hard-delete, soft-delete visibility,
-SUPERADMIN protection, audit stamps, rights matrix) come from the original
-HopePMS guide. Everything is enforced **in two places**: the UI for UX, and
-the Lambda+SQL layer for security.
+This codebase implements [PROJECT_PLAN.md](./PROJECT_PLAN.md). The business
+rules (no-hard-delete, soft-delete visibility, SUPERADMIN protection, audit
+stamps, rights matrix) come from the original HopePMS guide. Everything is
+enforced **in two places**: the UI for UX, and the Spring Boot + SQL layer for
+security — the browser is never trusted.
 
-### Project layout
+The frontend is a **static** Astro site (no SSR, no Node server). All dynamic
+concerns — auth, sessions, rights, data — live in the Spring Boot backend. The
+browser reaches it through an Amplify `/api/*` rewrite.
+
+> **Heads-up on `server/`:** the `server/` directory is a *legacy* prototype of
+> an earlier Node/Lambda design and is **not deployed or used**. The live
+> backend is `backend/` (Spring Boot on ECS). `server/` is retained for
+> reference only; ignore it when reasoning about runtime behaviour.
+
+### Repository layout
 
 ```
 .
-├── astro.config.mjs            # Astro SSR config (Node adapter)
-├── tailwind.config.mjs         # Design tokens — gradient mesh, glassmorphism
-├── tsconfig.json               # @/, @components/, @lib/, @server/ path aliases
-├── .env.example                # Copy to .env and fill in
-├── public/                     # Static assets (favicon, Google icon)
-└── src/
-    ├── layouts/
-    │   ├── BaseLayout.astro    # <html> shell, hero gradient mesh background
-    │   └── AppShell.astro      # Authenticated shell — guards, sidebar, top bar, timer
-    ├── components/
-    │   ├── Sidebar.astro       # Rights-gated nav
-    │   ├── TopBar.astro        # Title + idle timer chip
-    │   ├── ProductFormModal.astro
-    │   ├── ConfirmModal.astro
-    │   └── ui/Logo.astro
-    ├── pages/
-    │   ├── index.astro         # → /products
-    │   ├── login.astro         # Email + Google OAuth (Auth0 Universal Login)
-    │   ├── register.astro
-    │   ├── auth/callback.astro
-    │   ├── products/
-    │   │   ├── index.astro     # Active list + CRUD + price history drawer
-    │   │   └── deleted.astro   # Admin-only recovery panel
-    │   ├── reports/
-    │   │   ├── product-listing.astro
-    │   │   └── top-selling.astro
-    │   ├── admin/users.astro   # SUPERADMIN-protected user management
-    │   └── api/[...route].ts   # Dev-time proxy → Lambda handlers
-    ├── styles/global.css       # Tailwind layers + components (.btn-*, .field, .glass, …)
-    └── lib/
-        ├── security/           # ⚠️ critical — see “Security model” below
-        │   ├── crypto.ts       # AES-GCM, HKDF, per-tab ephemeral salt
-        │   ├── session.ts      # Encrypted sessionStorage vault
-        │   ├── timeout.ts      # Inactivity watchdog
-        │   ├── pathGuard.ts    # ../../../ blocklist + structured whitelists
-        │   ├── sanitize.ts     # HTML/URL output encoding
-        │   └── index.ts
-        ├── auth/
-        │   ├── auth0Client.ts  # SPA client (cacheLocation: 'memory')
-        │   └── rights.ts       # useRights / isAdmin / canSeeStamp
-        ├── api/
-        │   ├── client.ts       # Authenticated fetch wrapper
-        │   ├── products.ts
-        │   └── users.ts
-        └── utils/stamp.ts      # 'ACTION userId YYYY-MM-DD HH:MM'
-
-server/                         # ← Deployed as AWS Lambda
-├── tsconfig.json
-├── lib/
-│   ├── auth.ts                 # Auth0 JWT verifier (RS256, JWKS cache)
-│   ├── http.ts                 # API Gateway response helpers + CORS lock
-│   ├── sanitize.ts             # Server mirror of pathGuard
-│   ├── stamp.ts
-│   └── rights.ts
-├── db/
-│   ├── pool.ts                 # pg pool, parameterised query helper, withTx
-│   ├── schema.sql              # Full HopeDB DDL + HopePMS additions + triggers + views
-│   ├── seed-hopedb.sql         # Original HopeDB business data (HopeDB (3).sql)
-│   └── seed-superadmin.sql     # SUPERADMIN seed (auth0|REPLACE_ME)
-└── handlers/
-    ├── me.ts                   # GET /api/me — JIT provisioning + 403 not_activated
-    ├── products.ts             # CRUD + soft delete + price history
-    ├── admin-users.ts          # Activate / deactivate (SUPERADMIN-protected)
-    └── reports.ts              # REP_001 / REP_002
+├── astro.config.mjs            # output: 'static' — prerendered; dev proxies /api → :8080
+├── tailwind.config.mjs         # Monochrome design tokens, gradient mesh
+├── amplify.yml                 # Amplify static build + security headers (CSP/HSTS)
+├── src/                        # ← Astro static frontend (deployed to AWS Amplify)
+│   ├── layouts/
+│   │   ├── BaseLayout.astro    # <html> shell, hero gradient mesh background
+│   │   └── AppShell.astro      # Auth boot guard (+retry), sidebar, top bar,
+│   │   │                       #   idle timer, live identity watch
+│   ├── components/             # Sidebar, TopBar, ProductFormModal, ConfirmModal, ui/Logo
+│   ├── pages/
+│   │   ├── index.astro         # → /dashboard
+│   │   ├── login.astro         # Email + Google; client-side ?reason= banner/modal
+│   │   ├── register.astro      # Kicks off Auth0 sign-up
+│   │   ├── dashboard.astro     # Default landing — catalogue + activity overview
+│   │   ├── products/{index,deleted}.astro
+│   │   ├── reports/{product-listing,top-selling}.astro
+│   │   └── admin/{users,logs,superadmins}.astro
+│   ├── styles/global.css       # Tailwind layers + components (.btn-*, .field, .grad-*, …)
+│   └── lib/
+│       ├── auth/
+│       │   ├── volatileSession.ts  # ⚠️ session model — see “Security model”
+│       │   └── rights.ts           # useRights / isAdmin / canSeeStamp
+│       ├── api/                    # client.ts (credentialed fetch), products.ts, users.ts
+│       ├── security/               # pathGuard.ts, sanitize.ts, timeout.ts, index.ts
+│       └── utils/                  # stamp.ts, liveRefresh.ts, animateNumber.ts
+│
+├── backend/                    # ← Spring Boot 3.4 API (deployed to Amazon ECS)
+│   └── … see backend/README.md
+└── infra/                      # ← Terraform for every AWS resource
+    └── … see infra/README.md
 ```
+
+Backend internals (Auth0 flow, sessions, rights aspect, Flyway migrations) are
+documented in **[backend/README.md](./backend/README.md)**. The full AWS
+topology, cost, and apply walkthrough are in
+**[infra/README.md](./infra/README.md)**. This file covers the system model and
+local setup.
 
 ---
 
 ## 🔒 Security model
 
-### 1. Encrypted, ephemeral session storage
+### 1. Volatile sessions — zero client-side state
 
-- We use **sessionStorage** — auto-cleared by the browser when the tab closes.
-- Every value is wrapped with **AES-256-GCM**. The key is derived via HKDF
-  from `PUBLIC_SESSION_PEPPER` (build-time) + a **per-tab ephemeral salt**
-  that lives only in JS memory ([src/lib/security/crypto.ts](src/lib/security/crypto.ts)).
-- Refresh tokens never touch disk: Auth0 SPA SDK is configured with
-  `cacheLocation: 'memory'` ([src/lib/auth/auth0Client.ts](src/lib/auth/auth0Client.ts:30)).
-- The vault is wiped on `beforeunload`, `pagehide`, sign-out, and inactivity
-  timeout. The watchdog is in [src/lib/security/timeout.ts](src/lib/security/timeout.ts).
+There is **no** localStorage, sessionStorage, IndexedDB, or client-managed
+cookie holding any session state. Instead:
 
-### 2. Path-traversal prevention (`../../../`)
+- The only thing persisted in the browser is an **opaque session id** in an
+  `HttpOnly; Secure; SameSite=Strict` cookie named `HPMS_SID`, minted by the
+  backend. It has **no `Max-Age`/`Expires`**, so the browser drops it the
+  moment the tab closes.
+- The server-side session lives in **ElastiCache Redis** with a sliding TTL:
+  **30 min** standard, **8 min** for SUPERADMIN (tighter privileged window).
+- Identity/rights are cached in the browser only in a Nano Stores `atom`
+  ([src/lib/auth/volatileSession.ts](src/lib/auth/volatileSession.ts)) — plain
+  JS heap, gone on refresh. `beforeunload`/`pagehide`/tab-hidden best-effort
+  call `/api/auth/invalidate` so the Redis entry is dropped immediately.
+- Tokens never reach the browser: Auth0 runs as a **Regular Web App**
+  (Authorization Code + PKCE) entirely server-side
+  ([AuthController.java](backend/src/main/java/com/hopepms/auth/AuthController.java)).
+  The SPA SDK is never loaded.
 
-- A shared blocklist rejects `..`, URL-encoded `%2e%2e`, double-encoded
-  `%252e%252e`, `..`, null bytes, and other C0 controls
-  ([src/lib/security/pathGuard.ts](src/lib/security/pathGuard.ts)).
-- Structured fields (`prodCode`, `username`, `email`, …) go through strict
-  **whitelist regexes** before they touch the network.
-- The exact same checks live in
-  [server/lib/sanitize.ts](server/lib/sanitize.ts) — the Lambda layer never
-  trusts the browser's validation. Every handler runs `assertSafeString` on
-  the request path before pattern-matching it.
-- The API client refuses to build a URL whose path contains traversal
-  ([src/lib/api/client.ts:18](src/lib/api/client.ts#L18)).
+### 2. Real-time access resolution (live rights/role)
 
-### 3. No DELETE anywhere
+Role, rights, and account status are resolved **live, per request** — never
+frozen into the session at login.
 
-- All removals set `record_status = 'INACTIVE'` via PATCH.
-- A Postgres trigger (`trg_no_delete_*`) **raises** on any DELETE attempt
-  ([server/db/schema.sql](server/db/schema.sql)).
+- [VolatileSessionFilter.java](backend/src/main/java/com/hopepms/security/VolatileSessionFilter.java)
+  rebuilds the request principal every request from
+  `UserAccessService.snapshot(userId)`: Redis `hpms:acl:{userId}` (120 s
+  safety-net TTL) → on miss, the database via `ProvisioningService.loadOrNull`
+  (the *single* rights query — same SQL as login, so parity is guaranteed).
+- A `@TransactionalEventListener(AFTER_COMMIT)`
+  ([UserAccessChangedListener.java](backend/src/main/java/com/hopepms/security/UserAccessChangedListener.java))
+  evicts the ACL cache key the instant a promote / demote / activate /
+  deactivate / right-grant commits, so the change takes effect on that user's
+  **very next request** — no re-login, no waiting for a TTL.
+- The login-time `SessionRecord` is **no longer** the authorization source of
+  truth; the filter ignores its rights/userType except as the fail-open
+  fallback below.
 
-### 4. SUPERADMIN protection
+### 3. Session-lifetime contract
 
-Enforced at three layers:
+> **A live session ends only on explicit logout or the inactivity/TTL timeout.
+> Nothing the request itself observes destroys a session.**
 
-1. UI buttons are disabled with a tooltip on SUPERADMIN rows
-   ([src/pages/admin/users.astro](src/pages/admin/users.astro)).
-2. The Lambda handler 403s if the target is SUPERADMIN and the caller is not
-   ([server/handlers/admin-users.ts:53](server/handlers/admin-users.ts#L53)).
-3. The Postgres trigger `enforce_superadmin_protection` re-checks using
-   the `hopepms.caller_userid` GUC the handler sets per transaction.
+The request hot path is deliberately non-destructive. Depending on what
+`snapshot()` resolves to, the filter:
 
-### 5. Audit stamps
+- **active** → rebuilds the principal from it; the new role/rights apply
+  immediately and the TTL slides.
+- **null** (DB threw / indeterminate) → **fails open**: rebuilds from the
+  login-time snapshot and slides the TTL. A rights change is merely delayed,
+  never a logout.
+- **not-active** (deactivated / row gone) → **withholds all authority** for
+  the request (protected endpoints 401), but does **not** invalidate the
+  session or clear the cookie.
 
-Format `ACTION userId YYYY-MM-DD HH:MM`. Generated by the handler, never the
-client. Hidden from USER accounts in both API responses and UI.
+So a genuine deactivation stops working at once (zero rights) and the user is
+routed out by the normal SPA flow, while a *spurious / transient* not-active
+self-heals on the next request — never a permanent, abrupt logout.
+
+The client mirrors this fail-open stance: `fetchIdentity()` returns a 3-state
+probe (`ok | unauthenticated | unavailable`); **only HTTP 401 is a logout**.
+5xx / network / timeout are transient — the [AppShell](src/layouts/AppShell.astro)
+boot guard retries with backoff instead of redirecting on a single blip, and
+`startIdentityWatch` never counts transient failures toward its 2-strike rule.
+`startIdentityWatch` also reconciles a live promote/demote in place (re-gating
+the chrome without a reload).
+
+### 4. Activation gate
+
+A brand-new Auth0/Google sign-up is provisioned `USER` / `INACTIVE`. The
+backend bounces it to `/login?reason=activation_required`. Because the site is
+statically built, [login.astro](src/pages/login.astro) resolves `?reason=`
+**client-side** (off `window.location.search`) and shows a blocking
+“Wait for an Administrator to activate your account.” modal. An ADMIN/SUPERADMIN
+must activate the account via the Admin module before sign-in succeeds.
+
+### 5. Rights enforcement & SUPERADMIN protection
+
+- Backend: `@RequiresRight("PRD_DEL")` etc., evaluated by
+  [RequiresRightAspect.java](backend/src/main/java/com/hopepms/security/RequiresRightAspect.java)
+  against the live principal.
+- SUPERADMIN rows are protected at three layers: disabled UI controls →
+  handler 403 → the Postgres `enforce_superadmin_protection` trigger
+  (re-checks via the `hopepms.caller_userid` GUC set per transaction).
+
+### 6. No DELETE, ever
+
+- All removals set `record_status = 'INACTIVE'`; the `reject_hard_delete()`
+  Postgres trigger **raises** on any DELETE attempt — defence in depth even if
+  application logic is bypassed.
+
+### 7. Path-traversal & input hardening
+
+- A shared blocklist rejects `..`, `%2e%2e`, double-encoded `%252e%252e`, null
+  bytes, and C0 controls
+  ([src/lib/security/pathGuard.ts](src/lib/security/pathGuard.ts)); structured
+  fields go through strict whitelist regexes before hitting the network. The
+  backend re-validates server-side and never trusts the browser.
+
+### 8. Audit stamps
+
+Format `ACTION userId YYYY-MM-DD HH:MM`. Generated server-side, never by the
+client, and hidden from USER accounts in both API responses and the UI.
 
 ---
 
-## Getting started
+## Getting started (local development)
+
+You need two processes: the Spring Boot backend (`:8080`) and the Astro dev
+server (`:4321`, which proxies `/api/*` to the backend).
+
+### 1. Backend
+
+Full instructions — Postgres + Redis, env vars, Flyway, Auth0 app setup — are
+in **[backend/README.md](./backend/README.md)**. In short:
 
 ```bash
-# 1. Install
-npm install
+docker run -d --name pg    -p 5432:5432 -e POSTGRES_DB=hopedb \
+  -e POSTGRES_USER=hopepms -e POSTGRES_PASSWORD=hopepms postgres:16
+docker run -d --name redis -p 6379:6379 redis:7-alpine
 
-# 2. Configure
-cp .env.example .env
-#    Fill in Auth0, RDS, and session pepper values.
-#    Auth0 setup walkthrough: docs/AUTH0_SETUP.md
-#    Generate the pepper:
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# 3. Provision the database — load in this order:
-psql "$DATABASE_URL" -f server/db/schema.sql           # schema + triggers + views + rights catalog
-psql "$DATABASE_URL" -f server/db/seed-hopedb.sql      # original HopeDB business data (HopeDB (3).sql)
-psql "$DATABASE_URL" -f server/db/seed-superadmin.sql  # SUPERADMIN row (edit 'auth0|REPLACE_ME' first)
-
-# 4. Run dev server (Astro + Lambda proxy on :4321)
-npm run dev
+cd backend
+export AUTH0_DOMAIN=... AUTH0_CLIENT_ID=... AUTH0_CLIENT_SECRET=...
+export SESSION_COOKIE_SECURE=false        # local HTTP only
+sh ./mvnw spring-boot:run                  # mvnw is the POSIX script (no mvnw.cmd)
 ```
 
-> The HopeDB seed file mirrors `HopeDB (3).sql` from the instructor's reference,
-> with the `record_status` / `stamp` columns added by HopePMS populated to
-> sensible defaults (`ACTIVE` / `IMPORTED system <date>`). It includes
-> employees, departments, jobs, customers, sales, salesDetail, products,
-> payments, and priceHist.
+Flyway auto-runs the migrations on first boot — it creates the `hopedb`
+schema, seeds the modules/rights catalog, and inserts the SUPERADMIN
+placeholder row. Configuration is env-driven; defaults are in
+[backend/src/main/resources/application.yml](backend/src/main/resources/application.yml).
 
-`npm run dev` mounts the Lambda handlers behind `/api/*` via
-[src/pages/api/[...route].ts](src/pages/api/%5B...route%5D.ts) so the same
-handler code that ships to AWS runs locally.
+### 2. Frontend
 
-For production:
+```bash
+npm install
+npm run dev          # Astro on http://localhost:4321, /api/* proxied to :8080
+```
 
-- Front-end → AWS Amplify (Astro Node adapter)
-- API → API Gateway HTTP API → individual Lambdas per route group
-  (`me`, `products`, `admin-users`, `reports`)
-- DB → RDS PostgreSQL with SSL required
+The only frontend env var still in use is `PUBLIC_SESSION_TIMEOUT_MIN`
+(inactivity-timer display, default 30). The root `.env.example` predates the
+current architecture — the Auth0-SPA / `PUBLIC_SESSION_PEPPER` / Lambda
+entries in it are **dead** and can be ignored; backend config lives in
+`application.yml` and the ECS task definition, not a frontend `.env`.
+
+### Production
+
+- **Frontend** → AWS Amplify (static `dist/`, security headers via
+  [amplify.yml](./amplify.yml)).
+- **Backend** → Amazon ECS Fargate, reached as `/api/*` via Amplify rewrite →
+  CloudFront → ALB → ECS. CI deploys on push to `master` touching `backend/**`.
+- **Data** → RDS PostgreSQL 16 (Multi-AZ) + ElastiCache Redis 7.
+- Full topology, cost, and a step-by-step apply: **[infra/README.md](./infra/README.md)**.
 
 ---
 
 ## Routes & rights
 
-| Page                            | Right needed | Notes                                                |
-|---------------------------------|--------------|------------------------------------------------------|
-| `/products`                      | (any active) | USER sees ACTIVE only · stamp hidden                 |
-| `/products` Add button           | `PRD_ADD`    |                                                      |
-| `/products` Edit button          | `PRD_EDIT`   |                                                      |
-| `/products` Delete button        | `PRD_DEL`    | Soft delete only                                     |
-| `/products/deleted`              | ADMIN+       | Recovery panel                                        |
-| `/reports/product-listing`       | `REP_001`    |                                                      |
-| `/reports/top-selling`           | `REP_002`    | SUPERADMIN only per the rights matrix                |
-| `/admin/users`                   | `ADM_USER`   | SUPERADMIN rows always read-only for ADMIN callers   |
+| Page                          | Access needed | Notes                                              |
+|-------------------------------|---------------|----------------------------------------------------|
+| `/`                           | —             | Redirects to `/dashboard`                          |
+| `/dashboard`                  | any active    | Default landing — catalogue + activity overview    |
+| `/products`                   | any active    | USER sees ACTIVE only · stamp hidden               |
+| `/products/deleted`           | ADMIN+        | Soft-delete recovery panel                         |
+| `/reports/product-listing`    | `REP_001`     |                                                    |
+| `/reports/top-selling`        | `REP_002`     | SUPERADMIN only per the rights matrix              |
+| `/admin/users`                | `ADM_USER`    | SUPERADMIN rows read-only for ADMIN callers        |
+| `/admin/logs`                 | `ADM_USER`    | Audit / activity log                               |
+| `/admin/superadmins`          | owner only    | SUPERADMIN control (system owner)                  |
+
+Within `/products`, the action buttons each need their own right: **Add**
+requires `PRD_ADD`, **Edit** requires `PRD_EDIT`, **Delete** requires
+`PRD_DEL` (soft-delete only).
+
+All page guards are enforced again server-side per request; UI gating is UX
+only.
 
 ---
 
 ## Definition of Done coverage (PROJECT_PLAN.md §✅)
 
-| Mandate                                       | Where it lives                                                  |
-|-----------------------------------------------|-----------------------------------------------------------------|
-| No DELETE statements                          | Postgres trigger `reject_hard_delete` + no DELETE in source     |
-| Soft-deleted invisible to USER                | Lambda filter + UI filter (`/api/products` list)                 |
-| SUPERADMIN protection (UI + API)              | Modal-disabled button + handler check + DB trigger              |
-| Audit stamps on every write                   | `makeStamp()` called in every handler write path                |
-| Stamp hidden from USER                        | `sanitiseRow` in products handler + `canSeeStamp` in UI          |
-| Live production URL                           | Deploy via Amplify (see Getting started)                        |
+| Mandate                          | Where it lives                                                        |
+|----------------------------------|-----------------------------------------------------------------------|
+| No DELETE statements             | Postgres `reject_hard_delete` trigger + no DELETE in source           |
+| Soft-deleted invisible to USER   | Backend query filter + UI filter                                      |
+| SUPERADMIN protection (UI+API+DB)| Disabled controls + handler 403 + `enforce_superadmin_protection`     |
+| Audit stamps on every write      | `StampHelper` invoked in every backend write path                     |
+| Stamp hidden from USER           | Backend response sanitisation + `canSeeStamp` in UI                   |
+| Live rights/role changes         | `UserAccessService` + `VolatileSessionFilter` (resolved per request)  |
+| Session only ends on logout/idle | Non-destructive request hot path (see Security model §3)              |
+| Live production URL              | AWS Amplify + ECS (see infra/README.md)                               |
 
 ---
 
