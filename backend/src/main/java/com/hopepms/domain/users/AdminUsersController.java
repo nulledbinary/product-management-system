@@ -79,14 +79,24 @@ public class AdminUsersController {
                 .list();
     }
 
+    // @Transactional MUST sit on these proxied entry points, not on the
+    // package-private setStatus() they call: a self-invocation bypasses the
+    // Spring proxy, so an annotation on setStatus() alone is dead. Without an
+    // active transaction each jdbc.sql() autocommits on its own pooled
+    // connection, so setCaller()'s transaction-local
+    // set_config('hopepms.caller_userid', …, true) is discarded before the
+    // UPDATE runs and the V3 SUPERADMIN trigger RAISEs "caller identity not
+    // set". One transaction per request keeps the GUC visible to the UPDATE.
     @PostMapping("/{userId}/activate")
     @RequiresRight("ADM_USER")
+    @Transactional
     public Map<String, Object> activate(@AuthenticationPrincipal HopePrincipal me, @PathVariable String userId) {
         return setStatus(me, userId, "ACTIVE");
     }
 
     @PostMapping("/{userId}/deactivate")
     @RequiresRight("ADM_USER")
+    @Transactional
     public Map<String, Object> deactivate(@AuthenticationPrincipal HopePrincipal me, @PathVariable String userId) {
         return setStatus(me, userId, "INACTIVE");
     }
