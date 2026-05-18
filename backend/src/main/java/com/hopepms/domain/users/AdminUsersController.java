@@ -1,6 +1,8 @@
 package com.hopepms.domain.users;
 
+import com.hopepms.domain.admin.AdminLogService;
 import com.hopepms.security.HopePrincipal;
+import com.hopepms.security.Owner;
 import com.hopepms.security.RequiresRight;
 import com.hopepms.util.ApiException;
 import com.hopepms.util.StampHelper;
@@ -31,11 +33,18 @@ import java.util.UUID;
 public class AdminUsersController {
 
     private final JdbcClient jdbc;
+    private final AdminLogService audit;
 
-    public AdminUsersController(JdbcClient jdbc) {
+    public AdminUsersController(JdbcClient jdbc, AdminLogService audit) {
         this.jdbc = jdbc;
+        this.audit = audit;
     }
 
+    /**
+     * The everyday "Manage users" dashboard. SUPERADMIN accounts are never
+     * listed here for anyone — they are governed only from the owner-exclusive
+     * SUPERADMIN-control dashboard (see {@link #superadmins}).
+     */
     @GetMapping
     @RequiresRight("ADM_USER")
     public List<Map<String, Object>> list(@AuthenticationPrincipal HopePrincipal me) {
@@ -43,20 +52,30 @@ public class AdminUsersController {
                 SELECT "userId", username, "firstName", "lastName", email,
                        user_type, record_status, stamp, created_at
                   FROM hopedb."user"
+                 WHERE user_type <> 'SUPERADMIN'
                  ORDER BY created_at DESC
                 """)
-                .query((rs, n) -> {
-                    Map<String, Object> r = new LinkedHashMap<>();
-                    r.put("userId", rs.getString("userId"));
-                    r.put("username", rs.getString("username"));
-                    r.put("firstName", rs.getString("firstName"));
-                    r.put("lastName", rs.getString("lastName"));
-                    r.put("email", rs.getString("email"));
-                    r.put("userType", rs.getString("user_type"));
-                    r.put("recordStatus", rs.getString("record_status"));
-                    r.put("stamp", rs.getString("stamp"));
-                    return r;
-                })
+                .query(AdminUsersController::mapUser)
+                .list();
+    }
+
+    /**
+     * Owner-exclusive SUPERADMIN roster. Only the system owner (Owner.EMAIL)
+     * may see or act on SUPERADMIN accounts; every other principal — including
+     * other SUPERADMINs — gets 403.
+     */
+    @GetMapping("/superadmins")
+    @RequiresRight("ADM_USER")
+    public List<Map<String, Object>> superadmins(@AuthenticationPrincipal HopePrincipal me) {
+        requireOwner(me, "Only the system owner can view SUPERADMIN accounts");
+        return jdbc.sql("""
+                SELECT "userId", username, "firstName", "lastName", email,
+                       user_type, record_status, stamp, created_at
+                  FROM hopedb."user"
+                 WHERE user_type = 'SUPERADMIN'
+                 ORDER BY created_at DESC
+                """)
+                .query(AdminUsersController::mapUser)
                 .list();
     }
 
@@ -82,6 +101,12 @@ public class AdminUsersController {
         String wantType = req.userType == null || req.userType.isBlank() ? "USER" : req.userType;
         if (!"USER".equals(wantType) && !"ADMIN".equals(wantType) && !"SUPERADMIN".equals(wantType)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "validation", "userType must be USER, ADMIN or SUPERADMIN");
+        }
+        // Privilege ceiling: minting a SUPERADMIN is an escalation reserved
+        // for the owner (Infra / IT Tech). A regular SUPERADMIN can only
+        // create USER / ADMIN accounts.
+        if ("SUPERADMIN".equals(wantType)) {
+            requireOwner(me, "Only the system owner can create a SUPERADMIN");
         }
 
         Integer dupe = jdbc.sql("""
@@ -110,6 +135,8 @@ public class AdminUsersController {
         seedModules(newId);
         seedRights(newId, wantType);
 
+        audit.record(me, "USER_CREATE", "@" + req.username,
+                wantType + " · " + req.firstName + " " + req.lastName + " <" + req.email + ">");
         return Map.of("ok", true, "userId", newId, "userType", wantType);
     }
 
@@ -128,21 +155,25 @@ public class AdminUsersController {
     }
 
     /**
-     * Hard-delete (eradicate) an account for off-boarding. Their access rows
-     * are removed; any audit stamp that pointed at them is rewritten so the
-     * record keeps the person's full name but no longer leaks their
-     * username / opaque user id.
+     * Hard-delete (off-board) an account. Their access rows are removed; any
+     * audit stamp that pointed at them is rewritten so the record keeps the
+     * person's full name but no longer leaks their username / opaque user id.
+     *
+     * <p>The V3 no-hard-delete guard would otherwise reject the
+     * {@code DELETE FROM "user"} — this flow opts in for the "user" table only
+     * via {@code hopepms.allow_user_delete} (see V9). Deleting a SUPERADMIN is
+     * an owner-only action.
      */
     @DeleteMapping("/{userId}")
     @RequiresRight("ADM_USER")
     @Transactional
     public Map<String, Object> eradicate(@AuthenticationPrincipal HopePrincipal me, @PathVariable String userId) {
-        requireSuperAdmin(me, "Only a SUPERADMIN can eradicate accounts");
+        requireSuperAdmin(me, "Only a SUPERADMIN can delete accounts");
         if (userId.equals(me.userId())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "self", "You cannot eradicate your own account");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "self", "You cannot delete your own account");
         }
         List<Map<String, Object>> hits = jdbc.sql("""
-                SELECT "userId", "firstName", "lastName", user_type
+                SELECT "userId", username, "firstName", "lastName", user_type
                   FROM hopedb."user" WHERE "userId" = :uid
                 """)
                 .param("uid", userId)
@@ -153,21 +184,24 @@ public class AdminUsersController {
         Map<String, Object> target = hits.get(0);
 
         if ("SUPERADMIN".equals(target.get("user_type"))) {
+            requireOwner(me, "Only the system owner can delete a SUPERADMIN");
             Integer others = jdbc.sql("""
                     SELECT COUNT(*) FROM hopedb."user"
                      WHERE user_type = 'SUPERADMIN' AND "userId" <> :uid
                     """).param("uid", userId).query(Integer.class).single();
             if (others == null || others < 1) {
                 throw new ApiException(HttpStatus.CONFLICT, "last_superadmin",
-                        "Cannot eradicate the last SUPERADMIN");
+                        "Cannot delete the last SUPERADMIN");
             }
         }
 
         String fullName = ((String) target.getOrDefault("firstName", "")
                 + " " + (String) target.getOrDefault("lastName", "")).trim();
         if (fullName.isBlank()) fullName = "Former user";
+        String username = (String) target.getOrDefault("username", userId);
 
         setCaller(me.userId());
+        allowUserDelete();
 
         // Keep provenance human-readable; strip the username / id from stamps.
         int scrubbedProducts = jdbc.sql("""
@@ -193,6 +227,9 @@ public class AdminUsersController {
             throw new ApiException(HttpStatus.NOT_FOUND, "not_found", "User not found");
         }
 
+        audit.record(me, "USER_DELETE", "@" + username,
+                fullName + " (" + target.get("user_type") + ") permanently deleted; "
+                        + scrubbedProducts + " product stamp(s) rebound");
         return Map.of("ok", true, "userId", userId,
                 "eradicated", true, "stampsRebound", scrubbedProducts);
     }
@@ -201,14 +238,18 @@ public class AdminUsersController {
 
     @Transactional
     Map<String, Object> setStatus(HopePrincipal me, String userId, String next) {
-        String targetType = jdbc.sql("SELECT user_type FROM hopedb.\"user\" WHERE \"userId\" = :uid")
+        Map<String, Object> row = jdbc.sql("""
+                SELECT username, user_type FROM hopedb."user" WHERE "userId" = :uid
+                """)
                 .param("uid", userId)
-                .query(String.class)
+                .query(AdminUsersController::mapNameType)
                 .optional()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "not_found", "User not found"));
+        String targetType = (String) row.get("user_type");
+        String username = (String) row.getOrDefault("username", userId);
 
-        if ("SUPERADMIN".equals(targetType) && !me.isSuperAdmin()) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "forbidden", "SUPERADMIN accounts cannot be modified");
+        if ("SUPERADMIN".equals(targetType)) {
+            requireOwner(me, "SUPERADMIN accounts can only be managed by the system owner");
         }
 
         setCaller(me.userId());
@@ -227,22 +268,36 @@ public class AdminUsersController {
         if (rows == 0) {
             throw new ApiException(HttpStatus.NOT_FOUND, "not_found", "User not found");
         }
+        audit.record(me, "INACTIVE".equals(next) ? "USER_DEACTIVATE" : "USER_ACTIVATE",
+                "@" + username, targetType + " set " + next);
         return Map.of("ok", true, "userId", userId, "recordStatus", next);
     }
 
     private Map<String, Object> changeType(HopePrincipal me, String userId, boolean up) {
         requireSuperAdmin(me, "Only a SUPERADMIN can change roles");
-        String current = jdbc.sql("SELECT user_type FROM hopedb.\"user\" WHERE \"userId\" = :uid")
+        Map<String, Object> row = jdbc.sql("""
+                SELECT username, user_type FROM hopedb."user" WHERE "userId" = :uid
+                """)
                 .param("uid", userId)
-                .query(String.class)
+                .query(AdminUsersController::mapNameType)
                 .optional()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "not_found", "User not found"));
+        String current = (String) row.get("user_type");
+        String username = (String) row.getOrDefault("username", userId);
 
         String next = up ? nextUp(current) : nextDown(current);
         if (next.equals(current)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "noop",
                     up ? "User is already SUPERADMIN" : "User is already a USER");
         }
+
+        // Privilege ceiling. Crossing the SUPERADMIN tier in either direction
+        // is an escalation reserved for the owner (Infra / IT Tech). A regular
+        // SUPERADMIN can only move accounts between USER and ADMIN.
+        if ("SUPERADMIN".equals(next) || "SUPERADMIN".equals(current)) {
+            requireOwner(me, "Only the system owner can grant or remove SUPERADMIN");
+        }
+
         if (userId.equals(me.userId()) && "SUPERADMIN".equals(current) && !up) {
             Integer others = jdbc.sql("""
                     SELECT COUNT(*) FROM hopedb."user"
@@ -262,7 +317,29 @@ public class AdminUsersController {
                 .param("s", StampHelper.make(up ? "PROMOTED" : "DEMOTED", me.userId()))
                 .update();
         seedRights(userId, next);
+        audit.record(me, up ? "USER_PROMOTE" : "USER_DEMOTE",
+                "@" + username, current + " → " + next);
         return Map.of("ok", true, "userId", userId, "userType", next);
+    }
+
+    private static Map<String, Object> mapUser(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("userId", rs.getString("userId"));
+        r.put("username", rs.getString("username"));
+        r.put("firstName", rs.getString("firstName"));
+        r.put("lastName", rs.getString("lastName"));
+        r.put("email", rs.getString("email"));
+        r.put("userType", rs.getString("user_type"));
+        r.put("recordStatus", rs.getString("record_status"));
+        r.put("stamp", rs.getString("stamp"));
+        return r;
+    }
+
+    private static Map<String, Object> mapNameType(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("username", rs.getString("username"));
+        r.put("user_type", rs.getString("user_type"));
+        return r;
     }
 
     private static String nextUp(String t) {
@@ -279,9 +356,22 @@ public class AdminUsersController {
         }
     }
 
+    private void requireOwner(HopePrincipal me, String msg) {
+        if (!Owner.is(me)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "forbidden", msg);
+        }
+    }
+
     private void setCaller(String callerId) {
         jdbc.sql("SELECT set_config('hopepms.caller_userid', :uid, true)")
                 .param("uid", callerId)
+                .query(String.class)
+                .optional();
+    }
+
+    /** Opt this transaction in to the V9 guarded hard-delete of "user". */
+    private void allowUserDelete() {
+        jdbc.sql("SELECT set_config('hopepms.allow_user_delete', 'on', true)")
                 .query(String.class)
                 .optional();
     }

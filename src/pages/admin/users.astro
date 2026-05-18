@@ -10,8 +10,8 @@ import AppShell from '@layouts/AppShell.astro';
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 0 0 1.74-3L13.74 4a2 2 0 0 0-3.48 0L3.33 16a2 2 0 0 0 1.74 3z"/></svg>
         </span>
         <div>
-          <p class="font-display text-sm font-medium">SUPERADMIN protection is active.</p>
-          <p class="text-sm text-ink-muted">Role &amp; off-boarding actions are SUPERADMIN-only and are independently enforced by the Postgres policy layer.</p>
+          <p class="font-display text-sm font-medium">SUPERADMIN accounts are governed separately.</p>
+          <p class="text-sm text-ink-muted">They are never listed here. Granting or removing SUPERADMIN is an escalation reserved for the system owner (Infra / IT&nbsp;Tech).</p>
         </div>
       </div>
       <button id="new-user-btn" class="btn-primary hidden self-start sm:self-auto" data-sa>
@@ -36,7 +36,6 @@ import AppShell from '@layouts/AppShell.astro';
       </div>
       <select id="role-filter" class="field sm:w-44">
         <option value="">All roles</option>
-        <option value="SUPERADMIN">SUPERADMIN</option>
         <option value="ADMIN">ADMIN</option>
         <option value="USER">USER</option>
       </select>
@@ -87,20 +86,32 @@ import AppShell from '@layouts/AppShell.astro';
     </div>
   </div>
 
-  <!-- ─── Eradicate (type-to-confirm) ─────────────────────────────────── -->
-  <div id="erad-backdrop" class="modal-backdrop hidden" data-modal-backdrop="erad"></div>
-  <div id="erad" role="alertdialog" aria-modal="true" class="modal-panel hidden" data-modal="erad">
-    <h2 class="font-display text-lg font-semibold text-accent-rose">Eradicate account</h2>
+  <!-- ─── Delete user (agreement + type-to-confirm) ───────────────────── -->
+  <div id="del-backdrop" class="modal-backdrop hidden" data-modal-backdrop="del"></div>
+  <div id="del" role="alertdialog" aria-modal="true" class="modal-panel hidden" data-modal="del">
+    <h2 class="font-display text-lg font-semibold text-accent-rose">Delete user</h2>
     <p class="mt-2 text-sm text-ink-muted">
-      This <strong>permanently deletes</strong> <span id="erad-who" class="font-medium text-ink"></span>,
-      all of their access grants, and rewrites every audit stamp they touched so it keeps
-      their full name but drops their username and id. This cannot be undone.
+      You are about to <strong>permanently delete</strong> <span id="del-who" class="font-medium text-ink"></span>.
     </p>
-    <label class="field-label mt-5">Type <span id="erad-confirm-word" class="font-mono text-ink"></span> to confirm</label>
-    <input id="erad-input" class="field" autocomplete="off" placeholder="" />
+
+    <div class="mt-4 rounded-xl border border-accent-rose/25 bg-accent-rose/[0.06] p-3.5">
+      <p class="text-sm leading-relaxed text-ink-muted">
+        Upon deleting this user, you hereby agree that any and all data that was saved
+        will be fully eradicated and disjoined. Their entire existence in the system will
+        be completely wiped out and cannot be returned to its original state.
+      </p>
+      <label class="mt-3 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
+        <input id="del-agree" type="checkbox" class="h-4 w-4 shrink-0 rounded border-line bg-transparent accent-accent-rose" />
+        <span>Do you agree to this?</span>
+      </label>
+    </div>
+
+    <label class="field-label mt-5">Type <span class="font-mono text-ink">delete me</span> to confirm</label>
+    <input id="del-input" class="field" autocomplete="off" placeholder="delete me" />
+
     <div class="mt-6 flex items-center justify-end gap-2">
-      <button type="button" class="btn-secondary" data-modal-close="erad">Cancel</button>
-      <button type="button" id="erad-ok" class="btn-danger" disabled>Eradicate permanently</button>
+      <button type="button" class="btn-secondary" data-modal-close="del">Cancel</button>
+      <button type="button" id="del-ok" class="btn-danger" disabled>Delete user</button>
     </div>
   </div>
 
@@ -136,8 +147,8 @@ import AppShell from '@layouts/AppShell.astro';
         <select name="userType" class="field">
           <option value="USER">USER — standard access</option>
           <option value="ADMIN">ADMIN — manage products &amp; users</option>
-          <option value="SUPERADMIN">SUPERADMIN — full control</option>
         </select>
+        <p class="field-help">SUPERADMIN is granted only from the owner’s SUPERADMIN control panel.</p>
       </div>
       <p class="field-error hidden rounded-lg bg-accent-rose/10 px-3 py-2 ring-1 ring-inset ring-accent-rose/25" data-error="_form"></p>
       <div class="flex items-center justify-end gap-2 pt-2">
@@ -151,7 +162,7 @@ import AppShell from '@layouts/AppShell.astro';
     // @ts-nocheck
     import {
       listUsers, activateUser, deactivateUser,
-      createUser, promoteUser, demoteUser, eradicateUser,
+      createUser, promoteUser, demoteUser, deleteUser,
     } from '@lib/api/users';
     import { loadSession } from '@lib/auth/volatileSession';
     import { humanizeStamp } from '@lib/utils/stamp';
@@ -232,19 +243,17 @@ import AppShell from '@layouts/AppShell.astro';
       if (!rows.length) { tbody.innerHTML = ''; emptyState.classList.remove('hidden'); return; }
       emptyState.classList.add('hidden');
       tbody.innerHTML = rows.map((u) => {
-        const isSA = u.userType === 'SUPERADMIN';
-        const locked = isSA && !isSuper;            // non-super can't touch SUPERADMIN
         const inactive = u.recordStatus === 'INACTIVE';
-        const statusBtn = locked ? '' : `
+        const statusBtn = `
           <button class="btn-ghost h-8 px-2.5 text-xs" data-act="${inactive ? 'activate' : 'deactivate'}"
                   data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">
             ${inactive ? 'Activate' : 'Deactivate'}</button>`;
-        const roleBtns = (isSuper && !locked) ? `
+        const roleBtns = isSuper ? `
           ${u.userType !== 'SUPERADMIN' ? `<button class="btn-ghost h-8 px-2.5 text-xs" data-act="promote" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Promote</button>` : ''}
           ${u.userType !== 'USER' ? `<button class="btn-ghost h-8 px-2.5 text-xs" data-act="demote" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Demote</button>` : ''}
-          <button class="btn-ghost h-8 px-2.5 text-xs text-accent-rose hover:bg-accent-rose/10" data-act="eradicate" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Eradicate</button>` : '';
+          <button class="btn-ghost h-8 px-2.5 text-xs text-accent-rose hover:bg-accent-rose/10" data-act="delete" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Delete</button>` : '';
         return `
-          <tr class="${isSA ? 'bg-accent-amber/[0.03]' : ''}">
+          <tr>
             <td>
               <div class="font-medium">${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}</div>
               <div class="text-xs text-ink-dim">@${escapeHtml(u.username)}</div>
@@ -255,7 +264,7 @@ import AppShell from '@layouts/AppShell.astro';
             <td class="text-xs text-ink-muted">${escapeHtml(humanizeStamp(u.stamp, nameOf))}</td>
             <td>
               <div class="flex items-center justify-end gap-1">
-                ${statusBtn}${roleBtns || (locked ? '<span class="text-2xs text-ink-dim">Protected</span>' : '')}
+                ${statusBtn}${roleBtns}
               </div>
             </td>
           </tr>`;
@@ -273,6 +282,20 @@ import AppShell from '@layouts/AppShell.astro';
         tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed to load users.')}</td></tr>`;
       }
     }
+
+    // ── Delete-user modal: requires BOTH the agreement checkbox AND the
+    //    exact "delete me" phrase before the destructive button arms. ──────
+    const delInput = document.getElementById('del-input');
+    const delAgree = document.getElementById('del-agree');
+    const delOk = document.getElementById('del-ok');
+
+    function syncDelButton() {
+      const typed = (delInput.value || '').trim().toLowerCase() === 'delete me';
+      const agreed = delAgree.checked === true;
+      delOk.disabled = !(typed && agreed);
+    }
+    delInput.addEventListener('input', syncDelButton);
+    delAgree.addEventListener('change', syncDelButton);
 
     // ── Row action delegation ────────────────────────────────────────────
     tbody.addEventListener('click', (e) => {
@@ -298,20 +321,18 @@ import AppShell from '@layouts/AppShell.astro';
           danger: act === 'demote',
           onOk: () => (act === 'promote' ? promoteUser(id) : demoteUser(id)),
         });
-      } else if (act === 'eradicate') {
-        const word = name;
-        document.getElementById('erad-who').textContent = `@${name}`;
-        document.getElementById('erad-confirm-word').textContent = word;
-        const input = document.getElementById('erad-input');
-        const ok = document.getElementById('erad-ok');
-        input.value = ''; input.placeholder = word; ok.disabled = true;
-        input.oninput = () => { ok.disabled = input.value.trim() !== word; };
-        ok.onclick = async () => {
-          ok.disabled = true;
-          try { await eradicateUser(id); close('erad'); await refresh(); }
-          catch (err) { window.hopeNotify(err?.message ?? 'Eradicate failed.'); ok.disabled = false; }
+      } else if (act === 'delete') {
+        document.getElementById('del-who').textContent = `@${name}`;
+        delInput.value = '';
+        delAgree.checked = false;
+        syncDelButton();
+        delOk.onclick = async () => {
+          delOk.disabled = true;
+          try { await deleteUser(id); close('del'); await refresh(); }
+          catch (err) { window.hopeNotify(err?.message ?? 'Delete failed.'); syncDelButton(); }
         };
-        open('erad');
+        open('del');
+        setTimeout(() => delInput.focus(), 30);
       }
     });
 

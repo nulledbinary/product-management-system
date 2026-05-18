@@ -3,6 +3,7 @@ package com.hopepms.auth;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.hopepms.config.HopePmsProperties;
 import com.hopepms.security.HopePrincipal;
+import com.hopepms.security.Owner;
 import com.hopepms.security.SessionRecord;
 import com.hopepms.security.VolatileSessionFilter;
 import com.hopepms.security.VolatileSessionStore;
@@ -136,6 +137,7 @@ public class AuthController {
         body.put("email", principal.email());
         body.put("userType", principal.userType());
         body.put("rights", principal.rights());
+        body.put("owner", Owner.is(principal));
         return ResponseEntity.ok(body);
     }
 

@@ -1,0 +1,304 @@
+---
+import AppShell from '@layouts/AppShell.astro';
+---
+<AppShell
+  title="SUPERADMIN control"
+  subtitle="Owner-exclusive · Govern the SUPERADMIN tier (Infra / IT Tech)."
+  requireRight="ADM_USER"
+  requireOwner={true}
+>
+  <section class="space-y-6">
+    <div class="card flex items-start gap-3">
+      <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-violet/15 text-accent-violet">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
+      </span>
+      <div>
+        <p class="font-display text-sm font-medium">Owner bypass is active.</p>
+        <p class="text-sm text-ink-muted">Only you can mint, demote, deactivate or delete a SUPERADMIN. Regular admins never see this surface.</p>
+      </div>
+    </div>
+
+    <!-- ─── Stats ───────────────────────────────────────────────────── -->
+    <div class="grid gap-4 sm:grid-cols-3 reveal">
+      <div class="stat-card"><p class="stat-label">SUPERADMINs</p><p class="stat-figure" data-stat="total">—</p></div>
+      <div class="stat-card"><p class="stat-label">Active</p><p class="stat-figure" data-stat="active">—</p></div>
+      <div class="stat-card"><p class="stat-label">Promotable admins</p><p class="stat-figure" data-stat="admins">—</p></div>
+    </div>
+
+    <!-- ─── SUPERADMIN roster ───────────────────────────────────────── -->
+    <div class="card !p-0 overflow-hidden">
+      <div class="border-b border-line px-5 py-3">
+        <h2 class="font-display text-sm font-semibold">SUPERADMIN accounts</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Last activity</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="sa-rows">
+            {Array.from({ length: 3 }).map(() => (
+              <tr>
+                <td><div class="skeleton h-4 w-48"></div></td>
+                <td><div class="skeleton h-4 w-56"></div></td>
+                <td><div class="skeleton h-4 w-20"></div></td>
+                <td><div class="skeleton h-4 w-44"></div></td>
+                <td><div class="skeleton h-4 w-32 ml-auto"></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div id="sa-empty" class="hidden p-10 text-center">
+        <p class="font-display text-base font-medium">No SUPERADMIN accounts</p>
+        <p class="text-sm text-ink-dim">Promote an admin below to grant the tier.</p>
+      </div>
+    </div>
+
+    <!-- ─── Grant SUPERADMIN ────────────────────────────────────────── -->
+    <div class="card !p-0 overflow-hidden">
+      <div class="flex flex-col gap-3 border-b border-line px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 class="font-display text-sm font-semibold">Grant SUPERADMIN</h2>
+        <div class="relative sm:w-72">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="adm-q" type="search" placeholder="Search admins…" class="field pl-9 !py-2 !text-xs" />
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Admin</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th class="text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="adm-rows"></tbody>
+        </table>
+      </div>
+      <div id="adm-empty" class="hidden p-10 text-center">
+        <p class="font-display text-base font-medium">No admins to promote</p>
+        <p class="text-sm text-ink-dim">Create or promote an ADMIN from Manage Users first.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Generic confirm ─────────────────────────────────────────────── -->
+  <div id="confirm-backdrop" class="modal-backdrop hidden" data-modal-backdrop="confirm"></div>
+  <div id="confirm" role="alertdialog" aria-modal="true" class="modal-panel hidden" data-modal="confirm">
+    <h2 id="confirm-title" class="font-display text-lg font-semibold">Confirm</h2>
+    <p id="confirm-msg" class="mt-2 text-sm text-ink-muted"></p>
+    <div class="mt-6 flex items-center justify-end gap-2">
+      <button type="button" class="btn-secondary" data-modal-close="confirm">Cancel</button>
+      <button type="button" id="confirm-ok" class="btn-primary">Confirm</button>
+    </div>
+  </div>
+
+  <!-- ─── Delete SUPERADMIN (agreement + type-to-confirm) ─────────────── -->
+  <div id="del-backdrop" class="modal-backdrop hidden" data-modal-backdrop="del"></div>
+  <div id="del" role="alertdialog" aria-modal="true" class="modal-panel hidden" data-modal="del">
+    <h2 class="font-display text-lg font-semibold text-accent-rose">Delete SUPERADMIN</h2>
+    <p class="mt-2 text-sm text-ink-muted">
+      You are about to <strong>permanently delete</strong> <span id="del-who" class="font-medium text-ink"></span>.
+    </p>
+    <div class="mt-4 rounded-xl border border-accent-rose/25 bg-accent-rose/[0.06] p-3.5">
+      <p class="text-sm leading-relaxed text-ink-muted">
+        Upon deleting this user, you hereby agree that any and all data that was saved
+        will be fully eradicated and disjoined. Their entire existence in the system will
+        be completely wiped out and cannot be returned to its original state.
+      </p>
+      <label class="mt-3 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
+        <input id="del-agree" type="checkbox" class="h-4 w-4 shrink-0 rounded border-line bg-transparent accent-accent-rose" />
+        <span>Do you agree to this?</span>
+      </label>
+    </div>
+    <label class="field-label mt-5">Type <span class="font-mono text-ink">delete me</span> to confirm</label>
+    <input id="del-input" class="field" autocomplete="off" placeholder="delete me" />
+    <div class="mt-6 flex items-center justify-end gap-2">
+      <button type="button" class="btn-secondary" data-modal-close="del">Cancel</button>
+      <button type="button" id="del-ok" class="btn-danger" disabled>Delete SUPERADMIN</button>
+    </div>
+  </div>
+
+  <script>
+    // @ts-nocheck
+    import { listUsers, listSuperadmins, promoteUser, demoteUser, deleteUser, activateUser, deactivateUser } from '@lib/api/users';
+    import { humanizeStamp } from '@lib/utils/stamp';
+    import { escapeHtml } from '@lib/security/sanitize';
+    import { countUp } from '@lib/utils/animateNumber';
+
+    const saBody = document.getElementById('sa-rows');
+    const saEmpty = document.getElementById('sa-empty');
+    const admBody = document.getElementById('adm-rows');
+    const admEmpty = document.getElementById('adm-empty');
+    const admQ = document.getElementById('adm-q');
+
+    let supers = [];
+    let admins = [];
+    let nameById = new Map();
+    const nameOf = (id) => nameById.get(id);
+    function statusChip(s) { return s === 'ACTIVE' ? 'chip-active' : 'chip-inactive'; }
+
+    // ── Modal helpers ────────────────────────────────────────────────────
+    let openId = null;
+    function open(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.remove('hidden');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      openId = id;
+    }
+    function close(id) {
+      document.querySelector(`[data-modal="${id}"]`)?.classList.add('hidden');
+      document.querySelector(`[data-modal-backdrop="${id}"]`)?.classList.add('hidden');
+      document.body.style.overflow = '';
+      if (openId === id) openId = null;
+    }
+    document.querySelectorAll('[data-modal-close]').forEach((b) =>
+      b.addEventListener('click', () => close(b.getAttribute('data-modal-close'))));
+    document.querySelectorAll('[data-modal-backdrop]').forEach((b) =>
+      b.addEventListener('click', () => close(b.getAttribute('data-modal-backdrop'))));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId) close(openId); });
+
+    function confirmAction({ title, message, label, danger, onOk }) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-msg').textContent = message;
+      const ok = document.getElementById('confirm-ok');
+      ok.textContent = label;
+      ok.className = danger ? 'btn-danger' : 'btn-primary';
+      ok.disabled = false;
+      ok.onclick = async () => {
+        ok.disabled = true;
+        try { await onOk(); close('confirm'); await refresh(); }
+        catch (e) { window.hopeNotify(e?.message ?? 'Action failed.'); ok.disabled = false; }
+      };
+      open('confirm');
+    }
+
+    // ── Delete modal: agreement + "delete me" ────────────────────────────
+    const delInput = document.getElementById('del-input');
+    const delAgree = document.getElementById('del-agree');
+    const delOk = document.getElementById('del-ok');
+    function syncDelButton() {
+      const typed = (delInput.value || '').trim().toLowerCase() === 'delete me';
+      delOk.disabled = !(typed && delAgree.checked === true);
+    }
+    delInput.addEventListener('input', syncDelButton);
+    delAgree.addEventListener('change', syncDelButton);
+    function askDelete(id, name) {
+      document.getElementById('del-who').textContent = `@${name}`;
+      delInput.value = ''; delAgree.checked = false; syncDelButton();
+      delOk.onclick = async () => {
+        delOk.disabled = true;
+        try { await deleteUser(id); close('del'); await refresh(); }
+        catch (err) { window.hopeNotify(err?.message ?? 'Delete failed.'); syncDelButton(); }
+      };
+      open('del');
+      setTimeout(() => delInput.focus(), 30);
+    }
+
+    function renderSupers() {
+      if (!supers.length) { saBody.innerHTML = ''; saEmpty.classList.remove('hidden'); return; }
+      saEmpty.classList.add('hidden');
+      saBody.innerHTML = supers.map((u) => `
+        <tr>
+          <td>
+            <div class="font-medium">${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}</div>
+            <div class="text-xs text-ink-dim">@${escapeHtml(u.username)}</div>
+          </td>
+          <td class="text-sm text-ink-muted">${escapeHtml(u.email ?? '')}</td>
+          <td><span class="${statusChip(u.recordStatus)}">${escapeHtml(u.recordStatus ?? '—')}</span></td>
+          <td class="text-xs text-ink-muted">${escapeHtml(humanizeStamp(u.stamp, nameOf))}</td>
+          <td>
+            <div class="flex items-center justify-end gap-1">
+              <button class="btn-ghost h-8 px-2.5 text-xs" data-act="${u.recordStatus === 'INACTIVE' ? 'activate' : 'deactivate'}" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">${u.recordStatus === 'INACTIVE' ? 'Activate' : 'Deactivate'}</button>
+              <button class="btn-ghost h-8 px-2.5 text-xs" data-act="demote" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Demote to ADMIN</button>
+              <button class="btn-ghost h-8 px-2.5 text-xs text-accent-rose hover:bg-accent-rose/10" data-act="delete" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Delete</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    function renderAdmins() {
+      const q = (admQ.value || '').trim().toLowerCase();
+      const list = admins.filter((u) => !q ||
+        [u.firstName, u.lastName, u.username, u.email].some((v) => String(v || '').toLowerCase().includes(q)));
+      if (!list.length) { admBody.innerHTML = ''; admEmpty.classList.remove('hidden'); return; }
+      admEmpty.classList.add('hidden');
+      admBody.innerHTML = list.map((u) => `
+        <tr>
+          <td>
+            <div class="font-medium">${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}</div>
+            <div class="text-xs text-ink-dim">@${escapeHtml(u.username)}</div>
+          </td>
+          <td class="text-sm text-ink-muted">${escapeHtml(u.email ?? '')}</td>
+          <td><span class="${statusChip(u.recordStatus)}">${escapeHtml(u.recordStatus ?? '—')}</span></td>
+          <td>
+            <div class="flex items-center justify-end">
+              <button class="btn-ghost h-8 px-2.5 text-xs text-accent-violet hover:bg-accent-violet/10" data-act="promote" data-id="${escapeHtml(u.userId)}" data-name="${escapeHtml(u.username)}">Grant SUPERADMIN</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    function stats() {
+      countUp(document.querySelector('[data-stat="total"]'), supers.length);
+      countUp(document.querySelector('[data-stat="active"]'), supers.filter((u) => u.recordStatus === 'ACTIVE').length);
+      countUp(document.querySelector('[data-stat="admins"]'), admins.length);
+    }
+
+    function wire(tbody) {
+      tbody.addEventListener('click', (e) => {
+        const t = e.target.closest('[data-act][data-id]');
+        if (!t) return;
+        const act = t.getAttribute('data-act');
+        const id = t.getAttribute('data-id');
+        const name = t.getAttribute('data-name');
+        if (act === 'promote') {
+          confirmAction({
+            title: 'Grant SUPERADMIN?', message: `Promote @${name} to SUPERADMIN? They gain full control.`,
+            label: 'Grant SUPERADMIN', danger: false, onOk: () => promoteUser(id),
+          });
+        } else if (act === 'demote') {
+          confirmAction({
+            title: 'Demote SUPERADMIN?', message: `Demote @${name} to ADMIN? Their SUPERADMIN rights are revoked immediately.`,
+            label: 'Demote', danger: true, onOk: () => demoteUser(id),
+          });
+        } else if (act === 'activate' || act === 'deactivate') {
+          confirmAction({
+            title: act === 'activate' ? 'Activate SUPERADMIN?' : 'Deactivate SUPERADMIN?',
+            message: `${act === 'activate' ? 'Activate' : 'Deactivate'} @${name}? Reversible record_status change.`,
+            label: act === 'activate' ? 'Activate' : 'Deactivate', danger: act === 'deactivate',
+            onOk: () => (act === 'activate' ? activateUser(id) : deactivateUser(id)),
+          });
+        } else if (act === 'delete') {
+          askDelete(id, name);
+        }
+      });
+    }
+    wire(saBody);
+    wire(admBody);
+    admQ.addEventListener('input', renderAdmins);
+
+    async function refresh() {
+      try {
+        const [sa, everyone] = await Promise.all([listSuperadmins(), listUsers()]);
+        supers = sa;
+        admins = (everyone || []).filter((u) => u.userType === 'ADMIN');
+        nameById = new Map([...sa, ...admins].map((u) => [u.userId, `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim()]));
+        stats();
+        renderSupers();
+        renderAdmins();
+      } catch (e) {
+        saBody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed to load SUPERADMIN accounts.')}</td></tr>`;
+      }
+    }
+
+    refresh().catch(console.error);
+  </script>
+</AppShell>
