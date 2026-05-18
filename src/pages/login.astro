@@ -2,21 +2,15 @@
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Logo from '@components/ui/Logo.astro';
 
-const reason = Astro.url.searchParams.get('reason');
-const reasonText: Record<string, string> = {
-  timeout: 'Your session timed out for inactivity. Please sign in again.',
-  not_activated: 'Your account is pending administrator activation.',
-  auth_required: 'Please sign in to continue.',
-  forbidden: 'You do not have access to that page.',
-  guard_error: 'We could not verify your session — please sign in again.',
-  invalid_state: 'Your sign-in session expired. Please try again.',
-  auth0_token_failed: 'We could not complete sign-in. Please try again.',
-  session_ended: 'Your session ended. Please sign in again.',
-};
-// `activation_required` is shown as a blocking modal (below), not the inline
-// banner, so a just-registered user can't miss it.
-const pendingActivation = reason === 'activation_required';
-const banner = reason && !pendingActivation ? reasonText[reason] : null;
+// This site builds `output: 'static'` (see astro.config.mjs), so this page's
+// HTML is produced at BUILD time — Astro.url.searchParams is ALWAYS empty here
+// and cannot see the runtime `?reason=...` the backend redirects with. That is
+// precisely why the activation modal never appeared after an Auth0/Google
+// sign-up of a not-yet-activated account: the backend DOES redirect to
+// `/login?reason=activation_required`, but the prerendered page evaluated the
+// reason at build time (always null) and shipped the modal hard-hidden.
+// All reason handling now happens CLIENT-side off window.location.search in
+// the inline script below; the modal/banner markup is always emitted, hidden.
 ---
 <BaseLayout title="Sign in · HopePMS" variant="hero">
   <main class="relative mx-auto flex min-h-screen w-full max-w-[1100px] items-stretch px-4 py-10 sm:px-6 lg:px-8">
@@ -72,11 +66,11 @@ const banner = reason && !pendingActivation ? reasonText[reason] : null;
             <p class="mt-2 text-sm font-medium text-ink-muted">Sign in to access HopePMS.</p>
           </header>
 
-          {banner && (
-            <div role="alert" class="mb-6 rounded-2xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber">
-              {banner}
-            </div>
-          )}
+          <div
+            id="reason-banner"
+            role="alert"
+            class="mb-6 hidden rounded-2xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber"
+          ></div>
 
           <form id="login-form" class="space-y-5" novalidate autocomplete="on">
             <div>
@@ -123,10 +117,7 @@ const banner = reason && !pendingActivation ? reasonText[reason] : null;
 
   <!-- Pending-activation modal — shown after a brand-new account finishes the
        Auth0 round-trip but is still record_status != ACTIVE. -->
-  <div
-    id="activation-backdrop"
-    class:list={['modal-backdrop !z-[60]', { hidden: !pendingActivation }]}
-  ></div>
+  <div id="activation-backdrop" class="modal-backdrop !z-[60] hidden"></div>
   <div
     id="activation-modal"
     role="alertdialog"
@@ -134,7 +125,7 @@ const banner = reason && !pendingActivation ? reasonText[reason] : null;
     aria-labelledby="activation-title"
     aria-describedby="activation-msg"
     tabindex="-1"
-    class:list={['modal-panel !z-[70] !w-[min(440px,92vw)]', { hidden: !pendingActivation }]}
+    class="modal-panel !z-[70] !w-[min(440px,92vw)] hidden"
   >
     <div class="flex items-start gap-3">
       <span class="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-amber/15 text-accent-amber">
@@ -155,31 +146,71 @@ const banner = reason && !pendingActivation ? reasonText[reason] : null;
   </div>
 
   <script is:inline>
+    /* Static build can't see ?reason= at build time, so resolve it HERE from
+       the live URL. `activation_required` (a just-registered, not-yet-active
+       account bounced back from Auth0/Google) → the blocking modal; any other
+       known reason → the inline banner. Either way ?reason= is stripped so a
+       refresh is clean and the notice doesn't re-fire. */
     (function () {
-      var backdrop = document.getElementById('activation-backdrop');
-      var panel = document.getElementById('activation-modal');
-      var okBtn = document.getElementById('activation-ok');
-      if (!panel || panel.classList.contains('hidden')) return;
+      var reason = null;
+      try {
+        reason = new URLSearchParams(window.location.search).get('reason');
+      } catch (e) {}
+      if (!reason) return;
 
-      function close() {
-        panel.classList.add('hidden');
-        if (backdrop) backdrop.classList.add('hidden');
-        document.removeEventListener('keydown', onKey);
-        // Drop ?reason= so a refresh doesn't re-trigger the modal.
+      function stripReason() {
         try {
           var u = new URL(window.location.href);
           u.searchParams.delete('reason');
           window.history.replaceState({}, '', u.pathname + u.search);
         } catch (e) {}
       }
-      function onKey(e) {
-        if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
+
+      if (reason === 'activation_required') {
+        var backdrop = document.getElementById('activation-backdrop');
+        var panel = document.getElementById('activation-modal');
+        var okBtn = document.getElementById('activation-ok');
+        if (!panel) return;
+
+        var onKey = function (e) {
+          if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
+        };
+        function close() {
+          panel.classList.add('hidden');
+          if (backdrop) backdrop.classList.add('hidden');
+          document.removeEventListener('keydown', onKey);
+          stripReason();
+        }
+
+        panel.classList.remove('hidden');
+        if (backdrop) backdrop.classList.remove('hidden');
+        if (okBtn) okBtn.addEventListener('click', close);
+        if (backdrop) backdrop.addEventListener('click', close);
+        document.addEventListener('keydown', onKey);
+        try { okBtn.focus(); } catch (e) {}
+        return;
       }
 
-      okBtn && okBtn.addEventListener('click', close);
-      backdrop && backdrop.addEventListener('click', close);
-      document.addEventListener('keydown', onKey);
-      try { okBtn.focus(); } catch (e) {}
+      var REASON_TEXT = {
+        timeout: 'Your session timed out for inactivity. Please sign in again.',
+        not_activated: 'Your account is pending administrator activation.',
+        auth_required: 'Please sign in to continue.',
+        forbidden: 'You do not have access to that page.',
+        guard_error: 'We could not verify your session — please sign in again.',
+        invalid_state: 'Your sign-in session expired. Please try again.',
+        auth0_token_failed: 'We could not complete sign-in. Please try again.',
+        auth_failed: 'We could not complete sign-in. Please try again.',
+        session_ended: 'Your session ended. Please sign in again.'
+      };
+      var msg = REASON_TEXT[reason];
+      if (!msg) { stripReason(); return; }
+
+      var banner = document.getElementById('reason-banner');
+      if (banner) {
+        banner.textContent = msg;
+        banner.classList.remove('hidden');
+      }
+      stripReason();
     })();
   </script>
 

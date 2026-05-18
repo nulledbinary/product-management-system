@@ -130,7 +130,7 @@ const { title, subtitle, requireRight, requireAdmin, requireOwner } = Astro.prop
 
   <script>
     // @ts-nocheck
-    import { loadSession, signOut, startIdentityWatch } from '@lib/auth/volatileSession';
+    import { fetchIdentity, signOut, startIdentityWatch, $session } from '@lib/auth/volatileSession';
     import {
       startInactivityWatchdog,
       sessionTimeoutMs,
@@ -182,9 +182,35 @@ const { title, subtitle, requireRight, requireAdmin, requireOwner } = Astro.prop
       window.dispatchEvent(new Event('resize'));
     }
 
+    // The boot guard must NOT hard-logout on a single transient /api/auth/me
+    // blip — that is the "every time the dashboard changes I get logged out"
+    // bug. Retry the indeterminate case a few times with backoff; only a
+    // definitive 401 (or a backend that stays unreachable across every retry)
+    // ever sends the user to /login. A valid session simply rides it out.
+    async function resolveSession() {
+      const delays = [0, 400, 900, 1600];
+      for (let i = 0; i < delays.length; i++) {
+        if (delays[i]) await new Promise((r) => setTimeout(r, delays[i]));
+        const probe = await fetchIdentity();
+        if (probe.status === 'ok') {
+          $session.set(probe.identity);
+          return { ok: true, session: probe.identity };
+        }
+        if (probe.status === 'unauthenticated') {
+          $session.set(null);
+          return { ok: false, reason: 'auth_required' };
+        }
+        // 'unavailable' → transient; fall through and retry.
+      }
+      // Persistently unreachable: not "logged out", but we genuinely cannot
+      // render the app, so surface the softer guard_error reason instead.
+      return { ok: false, reason: 'guard_error' };
+    }
+
     async function bootstrap() {
-      const session = await loadSession();
-      if (!session) return redirect('/login?reason=auth_required');
+      const resolved = await resolveSession();
+      if (!resolved.ok) return redirect(`/login?reason=${resolved.reason}`);
+      const session = resolved.session;
 
       if (!authorizedFor(session)) return redirect('/dashboard?reason=forbidden');
 

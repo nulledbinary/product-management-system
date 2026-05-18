@@ -44,41 +44,45 @@ public class VolatileSessionFilter extends OncePerRequestFilter {
 
                 // Authorization state is resolved LIVE from the per-user ACL
                 // (cache → DB) so a promote/demote/right-grant takes effect on
-                // this very request and a deactivated/deleted account is torn
-                // down here instead of lingering until the session TTL.
+                // this very request — WITHOUT the request itself ever ending
+                // the session. A live session is terminated by exactly two
+                // things: an explicit logout, or the inactivity/TTL timeout.
+                // Nothing on this hot path destroys it. That is the product
+                // contract: "make the changes live, but the session stays
+                // intact unless logged out or timed out."
                 //
-                // Crucially this fails OPEN, not closed. snapshot() returns:
-                //   • a non-null snapshot → AUTHORITATIVE (good DB read, or a
-                //     cache entry derived from one). Honour it: tear the
-                //     session down iff it is not active.
-                //   • null → the live state could NOT be resolved (DB threw /
-                //     unreachable / indeterminate). This is NOT evidence the
-                //     account is invalid, so we must NOT log the user out over
-                //     infrastructure noise — fall back to the login-time
-                //     session snapshot exactly as the pre-real-time filter did.
-                //     The only cost is that a rights change is delayed until
-                //     the DB is reachable again (the documented, acceptable
-                //     degradation), never a spurious logout.
+                // snapshot() outcomes:
+                //   • active snapshot   → rebuild the principal from it (new
+                //     role/rights apply now) and slide the TTL.
+                //   • null (DB threw / unreachable / indeterminate) → fail
+                //     OPEN: rebuild from the login-time session snapshot and
+                //     slide the TTL, exactly as the pre-real-time filter did.
+                //     A rights change is merely delayed, never a logout.
+                //   • not-active (deactivated, or row reported gone) → withhold
+                //     ALL authority for this request so protected endpoints
+                //     401, but DO NOT invalidate the store session or clear
+                //     the cookie and DO NOT slide the TTL. A genuine
+                //     deactivation thus stops working immediately (no rights)
+                //     yet is routed by the normal SPA flow rather than an
+                //     abrupt mid-request cookie nuke; and a *spurious*
+                //     not-active (the documented clean-DB / trigger / blip
+                //     fragility) silently self-heals on the very next request
+                //     once the row resolves ACTIVE again — the user never
+                //     notices, instead of being permanently logged out.
                 UserAccessSnapshot snap = access.snapshot(record.userId());
 
                 if (snap == null) {
-                    // Unresolved → keep the existing session, build the
-                    // principal from its frozen snapshot, slide the TTL.
                     authenticate(record.userId(), record.username(), record.email(),
                             record.userType(), record.rights());
                     store.touch(record);
-                } else if (!snap.isActive()) {
-                    // Authoritative: deactivated (record_status != ACTIVE) or
-                    // row gone. Kill the server session + cookie and leave the
-                    // request unauthenticated so any protected endpoint 401s
-                    // and the SPA reconciler bounces them to /login.
-                    store.invalidate(sid.get());
-                    clearCookie(res);
-                } else {
+                } else if (snap.isActive()) {
                     authenticate(snap.userId(), snap.username(), snap.email(),
                             snap.userType(), snap.rights());
                     store.touch(record);
                 }
+                // else: not-active → leave the request unauthenticated, but
+                // keep the session + cookie. Recoverable, never an abrupt
+                // logout; explicit sign-out / timeout remain the only enders.
             } else {
                 clearCookie(res);
             }
