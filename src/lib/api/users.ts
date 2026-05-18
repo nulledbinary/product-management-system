@@ -70,13 +70,39 @@ export async function demoteUser(userId: string) {
   );
 }
 
-/** Hard delete — off-boarding. Stamps are scrubbed server-side. */
-export async function eradicateUser(userId: string) {
+/**
+ * Permanently delete (off-board) an account. Stamps are scrubbed server-side
+ * and the V9-guarded hard delete is what actually removes the row — this is
+ * the call that previously surfaced "Unexpected Error" before V9.
+ */
+export async function deleteUser(userId: string) {
   matchOrThrow(userId, USER_ID_RE, 'userId');
   return request<{ ok: true; eradicated: true }>(
     `/admin/users/${encodeURIComponent(userId)}`,
     { method: 'DELETE' },
   );
+}
+
+/** Owner-exclusive SUPERADMIN roster (403 for everyone but the owner). */
+export async function listSuperadmins() {
+  return request<UserRow[]>('/admin/users/superadmins');
+}
+
+export interface AdminLogEntry {
+  id: number;
+  at: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  action: string;
+  target: string | null;
+  detail: string | null;
+}
+
+/** Administrative activity log — Admin section only (ADM_USER). */
+export async function getAdminLogs(limit = 200) {
+  const n = Math.max(1, Math.min(500, Number(limit) | 0));
+  return request<AdminLogEntry[]>(`/admin/logs?limit=${n}`);
 }
 
 export async function getTopSelling(limit = 10) {

@@ -1,5 +1,6 @@
 package com.hopepms.domain.products;
 
+import com.hopepms.domain.admin.AdminLogService;
 import com.hopepms.security.HopePrincipal;
 import com.hopepms.security.RequiresRight;
 import com.hopepms.util.ApiException;
@@ -32,9 +33,11 @@ public class ProductController {
     private static final java.util.regex.Pattern PROD_CODE = java.util.regex.Pattern.compile("^[A-Z]{2}\\d{4}$");
 
     private final ProductRepository repo;
+    private final AdminLogService audit;
 
-    public ProductController(ProductRepository repo) {
+    public ProductController(ProductRepository repo, AdminLogService audit) {
         this.repo = repo;
+        this.audit = audit;
     }
 
     @GetMapping
@@ -83,6 +86,8 @@ public class ProductController {
         repo.insert(req.prodCode, req.description, req.unit, req.unitPrice, me.userId());
         ProductDto p = repo.findOne(req.prodCode)
                 .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "server_error", "Insert lost"));
+        audit.record(me, "PRODUCT_CREATE", req.prodCode,
+                req.description + " · " + req.unit + " · " + req.unitPrice);
         return ResponseEntity.status(HttpStatus.CREATED).body(sanitize(p, me));
     }
 
@@ -100,6 +105,8 @@ public class ProductController {
             throw new ApiException(HttpStatus.FORBIDDEN, "forbidden", "Missing right: PRD_EDIT");
         }
         repo.update(code, req.description, req.unit, req.unitPrice, me.userId());
+        audit.record(me, "PRODUCT_UPDATE", code,
+                req.description + " · " + req.unit + " · " + req.unitPrice);
         return Map.of("ok", true);
     }
 
@@ -114,6 +121,8 @@ public class ProductController {
             throw new ApiException(HttpStatus.FORBIDDEN, "forbidden", "Only ADMIN/SUPERADMIN can recover");
         }
         repo.setRecordStatus(code, next, me.userId());
+        audit.record(me, "INACTIVE".equals(next) ? "PRODUCT_DELETE" : "PRODUCT_RECOVER",
+                code, "record_status → " + next);
         return Map.of("ok", true);
     }
 

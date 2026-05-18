@@ -1,0 +1,174 @@
+---
+import AppShell from '@layouts/AppShell.astro';
+---
+<AppShell title="Activity log" subtitle="ADM_USER · Administrative audit trail — user & product lifecycle." requireRight="ADM_USER">
+  <section class="space-y-6">
+    <!-- ─── Summary strip ───────────────────────────────────────────── -->
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 reveal">
+      <div class="stat-card"><p class="stat-label">Events</p><p class="stat-figure" data-stat="count">—</p><p class="stat-sub">Most recent activity.</p></div>
+      <div class="stat-card"><p class="stat-label">Deletions</p><p class="stat-figure" data-stat="dels">—</p><p class="stat-sub">User &amp; product removals.</p></div>
+      <div class="stat-card"><p class="stat-label">Role changes</p><p class="stat-figure" data-stat="roles">—</p><p class="stat-sub">Promotions &amp; demotions.</p></div>
+      <div class="stat-card"><p class="stat-label">Last event</p><p class="stat-figure-sm" data-stat="last">—</p><p class="stat-sub">Newest entry timestamp.</p></div>
+    </div>
+
+    <!-- ─── Toolbar ─────────────────────────────────────────────────── -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="relative flex-1 sm:max-w-md">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="q" type="search" placeholder="Filter by actor, action or target…" class="field pl-9" />
+      </div>
+      <div class="flex items-center gap-3">
+        <select id="cat" class="field !py-2 !text-xs sm:w-44" aria-label="Category">
+          <option value="">All categories</option>
+          <option value="USER">User actions</option>
+          <option value="PRODUCT">Product actions</option>
+        </select>
+        <span class="text-xs text-ink-dim" data-result-count></span>
+      </div>
+    </div>
+
+    <!-- ─── Table ───────────────────────────────────────────────────── -->
+    <div class="card !p-0 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Target</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            {Array.from({ length: 8 }).map(() => (
+              <tr>
+                <td><div class="skeleton h-4 w-32"></div></td>
+                <td><div class="skeleton h-4 w-40"></div></td>
+                <td><div class="skeleton h-4 w-28"></div></td>
+                <td><div class="skeleton h-4 w-24"></div></td>
+                <td><div class="skeleton h-4 w-56"></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="hidden p-12 text-center">
+        <div class="mx-auto h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center">
+          <svg class="h-6 w-6 text-ink-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+        </div>
+        <p class="mt-3 font-display text-base font-medium" data-empty-title>No activity yet</p>
+        <p class="text-sm text-ink-dim" data-empty-hint>Administrative actions will appear here.</p>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // @ts-nocheck
+    import { getAdminLogs } from '@lib/api/users';
+    import { escapeHtml } from '@lib/security/sanitize';
+    import { countUp } from '@lib/utils/animateNumber';
+
+    const tbody = document.getElementById('rows');
+    const emptyState = document.getElementById('empty-state');
+    const q = document.getElementById('q');
+    const cat = document.getElementById('cat');
+    const resultCount = document.querySelector('[data-result-count]');
+
+    let rows = [];
+
+    const ACTION_LABEL = {
+      USER_CREATE: 'User created', USER_DELETE: 'User deleted',
+      USER_PROMOTE: 'User promoted', USER_DEMOTE: 'User demoted',
+      USER_ACTIVATE: 'User activated', USER_DEACTIVATE: 'User deactivated',
+      PRODUCT_CREATE: 'Product added', PRODUCT_UPDATE: 'Product updated',
+      PRODUCT_DELETE: 'Product deleted', PRODUCT_RECOVER: 'Product recovered',
+    };
+    function actionChip(a) {
+      const danger = a === 'USER_DELETE' || a === 'PRODUCT_DELETE' || a === 'USER_DEACTIVATE';
+      const good = a === 'USER_CREATE' || a === 'PRODUCT_CREATE' || a === 'USER_ACTIVATE' || a === 'PRODUCT_RECOVER';
+      const cls = danger ? 'chip-inactive' : good ? 'chip-active' : 'chip-admin';
+      return `<span class="${cls}">${escapeHtml(ACTION_LABEL[a] || a || '—')}</span>`;
+    }
+    function fmtWhen(s) {
+      const d = new Date(s);
+      if (Number.isNaN(d.getTime())) return String(s ?? '—');
+      return d.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    function debounce(fn, ms = 150) {
+      let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+    }
+
+    function currentView() {
+      const term = (q.value || '').trim().toLowerCase();
+      const c = cat.value;
+      return rows.filter((r) => {
+        if (c && !String(r.action || '').startsWith(c)) return false;
+        if (!term) return true;
+        return [r.actorName, r.actorEmail, r.action, r.target, r.detail]
+          .some((v) => String(v || '').toLowerCase().includes(term));
+      });
+    }
+
+    function updateStats() {
+      countUp(document.querySelector('[data-stat="count"]'), rows.length);
+      countUp(document.querySelector('[data-stat="dels"]'),
+        rows.filter((r) => r.action === 'USER_DELETE' || r.action === 'PRODUCT_DELETE').length, { duration: 700 });
+      countUp(document.querySelector('[data-stat="roles"]'),
+        rows.filter((r) => r.action === 'USER_PROMOTE' || r.action === 'USER_DEMOTE').length, { duration: 700 });
+      const lastEl = document.querySelector('[data-stat="last"]');
+      if (lastEl) lastEl.textContent = rows.length ? fmtWhen(rows[0].at) : '—';
+    }
+
+    function render() {
+      const view = currentView();
+      if (rows.length === 0) {
+        tbody.innerHTML = '';
+        document.querySelector('[data-empty-title]').textContent = 'No activity yet';
+        document.querySelector('[data-empty-hint]').textContent = 'Administrative actions will appear here.';
+        emptyState.classList.remove('hidden');
+      } else if (view.length === 0) {
+        tbody.innerHTML = '';
+        document.querySelector('[data-empty-title]').textContent = 'No matches';
+        document.querySelector('[data-empty-hint]').textContent = 'Nothing matches this filter.';
+        emptyState.classList.remove('hidden');
+      } else {
+        emptyState.classList.add('hidden');
+        tbody.innerHTML = view.map((r) => `
+          <tr>
+            <td class="whitespace-nowrap text-xs text-ink-muted font-mono">${escapeHtml(fmtWhen(r.at))}</td>
+            <td>
+              <div class="font-medium">${escapeHtml(r.actorName ?? '—')}</div>
+              <div class="text-xs text-ink-dim">${escapeHtml(r.actorEmail ?? '')}</div>
+            </td>
+            <td>${actionChip(r.action)}</td>
+            <td class="font-mono text-xs">${escapeHtml(r.target ?? '—')}</td>
+            <td class="text-sm text-ink-muted">${escapeHtml(r.detail ?? '')}</td>
+          </tr>`).join('');
+      }
+      if (resultCount) {
+        resultCount.textContent = rows.length
+          ? (view.length === rows.length
+              ? `${rows.length} ${rows.length === 1 ? 'event' : 'events'}`
+              : `${view.length} of ${rows.length}`)
+          : '';
+      }
+    }
+
+    q.addEventListener('input', debounce(render, 150));
+    cat.addEventListener('change', render);
+
+    (async () => {
+      try {
+        rows = await getAdminLogs(300);
+        updateStats();
+        render();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed to load the activity log.')}</td></tr>`;
+      }
+    })();
+  </script>
+</AppShell>
