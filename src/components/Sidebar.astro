@@ -10,7 +10,13 @@ import Logo from './ui/Logo.astro';
   <nav class="relative flex flex-col gap-1" data-nav>
     <span id="nav-indicator" class="opacity-0" aria-hidden="true"></span>
 
-    <p class="px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-dim">Products</p>
+    <p class="px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-dim">Overview</p>
+    <a href="/dashboard" class="nav-item" data-navlink="/dashboard">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      Dashboard
+    </a>
+
+    <p class="mt-5 px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-dim">Products</p>
     <a href="/products" class="nav-item" data-navlink="/products">
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
       Product List

@@ -52,12 +52,14 @@ import ConfirmModal from '@components/ConfirmModal.astro';
   <script>
     // @ts-nocheck
     import { listProducts, recoverProduct } from '@lib/api/products';
+    import { startLiveRefresh } from '@lib/utils/liveRefresh';
     import { escapeHtml } from '@lib/security/sanitize';
     import { humanizeStamp } from '@lib/utils/stamp';
 
     const tbody = document.getElementById('rows');
     const empty = document.getElementById('empty-state');
     let pending = null;
+    let live = null;
 
     function openModal(id) {
       document.querySelector(`[data-modal="${id}"]`)?.classList.remove('hidden');
@@ -100,12 +102,24 @@ import ConfirmModal from '@components/ConfirmModal.astro';
 
     document.querySelector('[data-confirm="recover-modal"]')?.addEventListener('click', async () => {
       if (!pending) return;
-      try { await recoverProduct(pending); closeModal('recover-modal'); await refresh(); }
+      try {
+        await recoverProduct(pending);
+        closeModal('recover-modal');
+        await refresh();
+        live?.ping();
+      }
       catch (e) { window.hopeNotify(e?.message ?? 'Could not recover.'); }
     });
 
-    refresh().catch((e) => {
-      tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed.')}</td></tr>`;
-    });
+    (async () => {
+      try {
+        await refresh();
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-sm text-accent-rose">${escapeHtml(e?.message ?? 'Failed.')}</td></tr>`;
+      }
+      // Listener: a recover here, or a soft-delete on the Products page,
+      // reconciles this bin live (shared 'hopepms-products' channel).
+      live = startLiveRefresh(refresh, { intervalMs: 15000, channel: 'hopepms-products' });
+    })();
   </script>
 </AppShell>

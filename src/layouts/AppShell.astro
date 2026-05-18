@@ -130,7 +130,7 @@ const { title, subtitle, requireRight, requireAdmin, requireOwner } = Astro.prop
 
   <script>
     // @ts-nocheck
-    import { loadSession, signOut } from '@lib/auth/volatileSession';
+    import { loadSession, signOut, startIdentityWatch } from '@lib/auth/volatileSession';
     import {
       startInactivityWatchdog,
       sessionTimeoutMs,
@@ -150,35 +150,45 @@ const { title, subtitle, requireRight, requireAdmin, requireOwner } = Astro.prop
       window.location.replace(target);
     }
 
+    const isAdmin = (s) => s.userType === 'ADMIN' || s.userType === 'SUPERADMIN';
+
+    // Does this session satisfy THIS page's access requirements?
+    function authorizedFor(session) {
+      if (requireAdmin && !isAdmin(session)) return false;
+      if (requireRight && !session.rights.has(requireRight)) return false;
+      if (requireOwner && session.owner !== true) return false;
+      return true;
+    }
+
+    // Reconcile every access-gated bit of chrome to the CURRENT session.
+    // Critically this both reveals AND hides — a live demotion has to remove
+    // links/buttons, not just fail to add them — so it is safe to call
+    // repeatedly as the role changes underneath an open tab.
+    function applyAccess(session) {
+      document.querySelectorAll('[data-username]').forEach((el) => { el.textContent = session.username; });
+      document.querySelectorAll('[data-usertype]').forEach((el) => { el.textContent = session.userType; });
+
+      document.querySelectorAll('[data-right]').forEach((el) => {
+        const r = el.getAttribute('data-right');
+        const visible = r === 'deleted' ? isAdmin(session) : session.rights.has(r);
+        el.classList.toggle('hidden', !visible);
+      });
+      document.querySelectorAll('[data-owner]').forEach((el) => {
+        el.classList.toggle('hidden', session.owner !== true);
+      });
+
+      // Let the sidebar's active-indicator recompute now that the set of
+      // visible links may have changed.
+      window.dispatchEvent(new Event('resize'));
+    }
+
     async function bootstrap() {
       const session = await loadSession();
       if (!session) return redirect('/login?reason=auth_required');
 
-      if (requireAdmin && !(session.userType === 'ADMIN' || session.userType === 'SUPERADMIN')) {
-        return redirect('/products?reason=forbidden');
-      }
-      if (requireRight && !session.rights.has(requireRight)) {
-        return redirect('/products?reason=forbidden');
-      }
-      if (requireOwner && session.owner !== true) {
-        return redirect('/products?reason=forbidden');
-      }
+      if (!authorizedFor(session)) return redirect('/dashboard?reason=forbidden');
 
-      document.querySelectorAll('[data-username]').forEach((el) => el.textContent = session.username);
-      document.querySelectorAll('[data-usertype]').forEach((el) => el.textContent = session.userType);
-
-      document.querySelectorAll('[data-right]').forEach((el) => {
-        const r = el.getAttribute('data-right');
-        const visible =
-          r === 'deleted'
-            ? (session.userType === 'ADMIN' || session.userType === 'SUPERADMIN')
-            : session.rights.has(r);
-        if (visible) el.classList.remove('hidden');
-      });
-
-      if (session.owner === true) {
-        document.querySelectorAll('[data-owner]').forEach((el) => el.classList.remove('hidden'));
-      }
+      applyAccess(session);
 
       document.getElementById('signout-btn')?.addEventListener('click', async () => {
         await signOut();
@@ -215,6 +225,26 @@ const { title, subtitle, requireRight, requireAdmin, requireOwner } = Astro.prop
         splash.style.opacity = '0';
         setTimeout(() => splash.remove(), 360);
       }
+
+      // Real-time identity reconcile. The backend resolves rights live per
+      // request; this notices a promote/demote/right-grant and re-gates the
+      // chrome in place, or — if the account was deactivated/deleted, or this
+      // page now exceeds the new permissions — bounces the user out. No reload.
+      startIdentityWatch({
+        onChange(next) {
+          if (!authorizedFor(next)) {
+            return redirect('/dashboard?reason=access_changed');
+          }
+          applyAccess(next);
+          try {
+            window.hopeNotify('Your access level was updated by an administrator.',
+              { variant: 'info', title: 'Access updated' });
+          } catch (e) {}
+        },
+        onLost() {
+          redirect('/login?reason=session_ended');
+        },
+      });
     }
 
     bootstrap().catch((err) => {

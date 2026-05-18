@@ -4,8 +4,10 @@ import com.hopepms.domain.admin.AdminLogService;
 import com.hopepms.security.HopePrincipal;
 import com.hopepms.security.Owner;
 import com.hopepms.security.RequiresRight;
+import com.hopepms.security.UserAccessChangedEvent;
 import com.hopepms.util.ApiException;
 import com.hopepms.util.StampHelper;
+import org.springframework.context.ApplicationEventPublisher;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -34,10 +36,22 @@ public class AdminUsersController {
 
     private final JdbcClient jdbc;
     private final AdminLogService audit;
+    private final ApplicationEventPublisher events;
 
-    public AdminUsersController(JdbcClient jdbc, AdminLogService audit) {
+    public AdminUsersController(JdbcClient jdbc, AdminLogService audit, ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.audit = audit;
+        this.events = events;
+    }
+
+    /**
+     * Signal that an account's live access changed so its ACL cache is evicted
+     * once this transaction commits (see UserAccessChangedListener). Published
+     * inside the @Transactional request method on purpose: AFTER_COMMIT only
+     * fires if the role/status/right change actually persisted.
+     */
+    private void announceAccessChange(String userId) {
+        events.publishEvent(new UserAccessChangedEvent(userId));
     }
 
     /**
@@ -144,6 +158,7 @@ public class AdminUsersController {
 
         seedModules(newId);
         seedRights(newId, wantType);
+        announceAccessChange(newId);
 
         audit.record(me, "USER_CREATE", "@" + req.username,
                 wantType + " · " + req.firstName + " " + req.lastName + " <" + req.email + ">");
@@ -236,6 +251,9 @@ public class AdminUsersController {
         if (gone == 0) {
             throw new ApiException(HttpStatus.NOT_FOUND, "not_found", "User not found");
         }
+        // Row is gone: the next request carrying this user's session resolves
+        // an absent ACL snapshot and the filter tears the session down.
+        announceAccessChange(userId);
 
         audit.record(me, "USER_DELETE", "@" + username,
                 fullName + " (" + target.get("user_type") + ") permanently deleted; "
@@ -278,6 +296,9 @@ public class AdminUsersController {
         if (rows == 0) {
             throw new ApiException(HttpStatus.NOT_FOUND, "not_found", "User not found");
         }
+        // Deactivate → live sessions are torn down on next request; activate →
+        // the account can authenticate again immediately.
+        announceAccessChange(userId);
         audit.record(me, "INACTIVE".equals(next) ? "USER_DEACTIVATE" : "USER_ACTIVATE",
                 "@" + username, targetType + " set " + next);
         return Map.of("ok", true, "userId", userId, "recordStatus", next);
@@ -327,6 +348,7 @@ public class AdminUsersController {
                 .param("s", StampHelper.make(up ? "PROMOTED" : "DEMOTED", me.userId()))
                 .update();
         seedRights(userId, next);
+        announceAccessChange(userId);
         audit.record(me, up ? "USER_PROMOTE" : "USER_DEMOTE",
                 "@" + username, current + " → " + next);
         return Map.of("ok", true, "userId", userId, "userType", next);

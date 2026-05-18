@@ -112,6 +112,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
       softDeleteProduct, getPriceHistory,
     } from '@lib/api/products';
     import { loadSession } from '@lib/auth/volatileSession';
+    import { startLiveRefresh } from '@lib/utils/liveRefresh';
     import { canSeeStamp, useRights } from '@lib/auth/rights';
     import { escapeHtml } from '@lib/security/sanitize';
     import { ValidationError } from '@lib/security/pathGuard';
@@ -128,6 +129,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
     let session = null;
     let can = () => false;
     let showStamp = false;
+    let live = null;
 
     function fmtPrice(n) {
       if (n == null || Number.isNaN(Number(n))) return '—';
@@ -240,6 +242,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
         else await updateProduct(input);
         closeModal(mode === 'add' ? 'add-modal' : 'edit-modal');
         await refresh();
+        live?.ping();
       } catch (e) {
         if (e instanceof ValidationError) {
           showFormError(form, e.field, e.message);
@@ -296,6 +299,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
         await softDeleteProduct(pendingDeleteCode);
         closeModal('delete-modal');
         await refresh();
+        live?.ping();
       } catch (e) {
         window.hopeNotify(e?.message ?? 'Delete failed.');
       }
@@ -347,6 +351,12 @@ import ConfirmModal from '@components/ConfirmModal.astro';
       search.addEventListener('input', debounce(applyFilter, 150));
 
       await refresh();
+
+      // Listener: keep the catalogue live. A soft-delete / recover / add in
+      // any tab (or by another user) reconciles here without a manual refresh,
+      // so the list is never stagnant and soft-deleted rows drop out on their
+      // own. Shares a channel with the Deleted Items page.
+      live = startLiveRefresh(refresh, { intervalMs: 15000, channel: 'hopepms-products' });
     })().catch(console.error);
   </script>
 </AppShell>
