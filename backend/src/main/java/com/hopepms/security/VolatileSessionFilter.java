@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
 public class VolatileSessionFilter extends OncePerRequestFilter {
@@ -42,33 +43,40 @@ public class VolatileSessionFilter extends OncePerRequestFilter {
                 SessionRecord record = opt.get();
 
                 // Authorization state is resolved LIVE from the per-user ACL
-                // (cache → DB), never from the login-time session snapshot.
-                // A promote/demote/right-grant therefore takes effect on this
-                // very request; a deactivated or hard-deleted account is torn
+                // (cache → DB) so a promote/demote/right-grant takes effect on
+                // this very request and a deactivated/deleted account is torn
                 // down here instead of lingering until the session TTL.
+                //
+                // Crucially this fails OPEN, not closed. snapshot() returns:
+                //   • a non-null snapshot → AUTHORITATIVE (good DB read, or a
+                //     cache entry derived from one). Honour it: tear the
+                //     session down iff it is not active.
+                //   • null → the live state could NOT be resolved (DB threw /
+                //     unreachable / indeterminate). This is NOT evidence the
+                //     account is invalid, so we must NOT log the user out over
+                //     infrastructure noise — fall back to the login-time
+                //     session snapshot exactly as the pre-real-time filter did.
+                //     The only cost is that a rights change is delayed until
+                //     the DB is reachable again (the documented, acceptable
+                //     degradation), never a spurious logout.
                 UserAccessSnapshot snap = access.snapshot(record.userId());
 
-                if (!snap.isActive()) {
-                    // Deactivated (record_status != ACTIVE) or row gone.
-                    // Kill the server session + cookie and leave the request
-                    // unauthenticated so any protected endpoint 401s and the
-                    // SPA reconciler bounces them to /login.
+                if (snap == null) {
+                    // Unresolved → keep the existing session, build the
+                    // principal from its frozen snapshot, slide the TTL.
+                    authenticate(record.userId(), record.username(), record.email(),
+                            record.userType(), record.rights());
+                    store.touch(record);
+                } else if (!snap.isActive()) {
+                    // Authoritative: deactivated (record_status != ACTIVE) or
+                    // row gone. Kill the server session + cookie and leave the
+                    // request unauthenticated so any protected endpoint 401s
+                    // and the SPA reconciler bounces them to /login.
                     store.invalidate(sid.get());
                     clearCookie(res);
                 } else {
-                    List<SimpleGrantedAuthority> authorities = snap.rights().stream()
-                            .map(r -> new SimpleGrantedAuthority("RIGHT_" + r))
-                            .toList();
-
-                    HopePrincipal principal = new HopePrincipal(
-                            snap.userId(), snap.username(), snap.email(),
-                            snap.userType(), snap.rights()
-                    );
-
-                    UsernamePasswordAuthenticationToken auth =
-                            new UsernamePasswordAuthenticationToken(principal, null, authorities);
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-
+                    authenticate(snap.userId(), snap.username(), snap.email(),
+                            snap.userType(), snap.rights());
                     store.touch(record);
                 }
             } else {
@@ -81,6 +89,19 @@ public class VolatileSessionFilter extends OncePerRequestFilter {
         } finally {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    /** Install the request {@link HopePrincipal} + authorities from a resolved
+     *  (live or session-snapshot) identity. Same shape either way. */
+    private void authenticate(String userId, String username, String email,
+                              String userType, Set<String> rights) {
+        List<SimpleGrantedAuthority> authorities = rights.stream()
+                .map(r -> new SimpleGrantedAuthority("RIGHT_" + r))
+                .toList();
+        HopePrincipal principal = new HopePrincipal(userId, username, email, userType, rights);
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(principal, null, authorities);
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
     private Optional<String> readSessionId(HttpServletRequest req) {

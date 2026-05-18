@@ -93,6 +93,19 @@
     @apply bg-brand-grad bg-clip-text text-transparent;
   }
 
+  /* ─── Gradient border (Vision UI auth treatment, monochromed) ──────────
+     Vision UI wraps its auth inputs/cards in a 2px radial-gradient frame.
+     Same construction here, but the brand-purple stop is dropped so the
+     ring is pure white→transparent on the deep background. The framed
+     child supplies its own bg + slightly tighter radius. */
+  .grad-border {
+    @apply relative p-px;
+    background:
+      radial-gradient(69.43% 69.43% at 50% 50%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 100%),
+      radial-gradient(60% 51.57% at 50% 50%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 100%),
+      radial-gradient(54.8% 53% at 50% 50%, rgba(21,21,21,1) 0%, rgba(21,21,21,0) 100%);
+  }
+
   /* ─── Pill / chip ───────────────────────────────────────────────────── */
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-medium uppercase tracking-wider;
