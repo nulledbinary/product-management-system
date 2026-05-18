@@ -101,7 +101,7 @@ import ConfirmModal from '@components/ConfirmModal.astro';
     document.querySelector('[data-confirm="recover-modal"]')?.addEventListener('click', async () => {
       if (!pending) return;
       try { await recoverProduct(pending); closeModal('recover-modal'); await refresh(); }
-      catch (e) { alert(e?.message ?? 'Could not recover.'); }
+      catch (e) { window.hopeNotify(e?.message ?? 'Could not recover.'); }
     });
 
     refresh().catch((e) => {
