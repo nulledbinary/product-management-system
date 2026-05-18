@@ -72,6 +72,14 @@ public class ProductController {
             @Valid @RequestBody CreateRequest req
     ) {
         validateCode(req.prodCode);
+        // Pre-check by code so a re-used prodCode returns a precise 409 with
+        // the offending code, instead of the bare unique-constraint violation
+        // bubbling up as an opaque 500 "Unexpected error". Mirrors the
+        // duplicate-email/username guard in AdminUsersController.create.
+        if (repo.findOne(req.prodCode).isPresent()) {
+            throw new ApiException(HttpStatus.CONFLICT, "conflict",
+                    "Product " + req.prodCode + " already exists");
+        }
         repo.insert(req.prodCode, req.description, req.unit, req.unitPrice, me.userId());
         ProductDto p = repo.findOne(req.prodCode)
                 .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "server_error", "Insert lost"));

@@ -44,6 +44,82 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
     Session timed out — please sign in again.
   </div>
 
+  <!-- ─── Global notice dialog ──────────────────────────────────────────
+       A single accessible modal that replaces every window.alert(). Pages
+       call window.hopeNotify(message, { title, variant }). It sits above
+       regular .modal-panel modals so a failure raised while another modal
+       is open is still readable. -->
+  <div id="notice-backdrop" class="modal-backdrop hidden !z-[60]" data-notice-backdrop></div>
+  <div id="notice" role="alertdialog" aria-modal="true" aria-labelledby="notice-title"
+       aria-describedby="notice-msg" class="modal-panel hidden !z-[70] !w-[min(420px,92vw)]"
+       data-notice tabindex="-1">
+    <div class="flex items-start gap-3">
+      <span id="notice-icon" class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="16.5" x2="12.01" y2="16.5" />
+        </svg>
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 id="notice-title" class="font-display text-base font-semibold tracking-tight">Something went wrong</h2>
+        <p id="notice-msg" class="mt-1.5 text-sm leading-relaxed text-ink-muted break-words"></p>
+      </div>
+    </div>
+    <div class="mt-6 flex justify-end">
+      <button type="button" id="notice-ok" class="btn-primary h-9 px-5 text-sm">Got it</button>
+    </div>
+  </div>
+
+  <script is:inline>
+    /* No imports — runs in document order so window.hopeNotify is defined
+       before any deferred page module can call it. */
+    (function () {
+      var backdrop = document.getElementById('notice-backdrop');
+      var panel = document.getElementById('notice');
+      var iconWrap = document.getElementById('notice-icon');
+      var titleEl = document.getElementById('notice-title');
+      var msgEl = document.getElementById('notice-msg');
+      var okBtn = document.getElementById('notice-ok');
+      if (!panel || !backdrop) return;
+
+      var lastFocus = null;
+      var VARIANTS = {
+        error:   { title: 'Something went wrong', cls: 'bg-accent-rose/15 text-accent-rose' },
+        success: { title: 'Done',                 cls: 'bg-accent-mint/15 text-accent-mint' },
+        info:    { title: 'Heads up',             cls: 'bg-white/10 text-ink' },
+      };
+
+      function hide() {
+        panel.classList.add('hidden');
+        backdrop.classList.add('hidden');
+        document.removeEventListener('keydown', onKey);
+        if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
+        lastFocus = null;
+      }
+      function onKey(e) {
+        if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); hide(); }
+      }
+
+      window.hopeNotify = function (message, opts) {
+        opts = opts || {};
+        var v = VARIANTS[opts.variant] || VARIANTS.error;
+        titleEl.textContent = opts.title || v.title;
+        msgEl.textContent = message == null || message === ''
+          ? 'An unexpected error occurred. Please try again.'
+          : String(message);
+        iconWrap.className =
+          'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ' + v.cls;
+        lastFocus = document.activeElement;
+        backdrop.classList.remove('hidden');
+        panel.classList.remove('hidden');
+        document.addEventListener('keydown', onKey);
+        try { okBtn.focus(); } catch (e) {}
+      };
+
+      okBtn.addEventListener('click', hide);
+      backdrop.addEventListener('click', hide);
+    })();
+  </script>
+
   <script
     is:inline
     define:vars={{ requireRight, requireAdmin }}
