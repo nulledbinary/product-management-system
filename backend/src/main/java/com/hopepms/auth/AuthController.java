@@ -108,7 +108,10 @@ public class AuthController {
         );
 
         if (!"ACTIVE".equals(account.recordStatus())) {
-            URI to = URI.create(props.auth0().logoutReturnTo() + "?reason=not_activated");
+            // Freshly registered (or not-yet-activated) account: the row exists
+            // but record_status != ACTIVE. Bounce back to /login with a reason
+            // the SPA renders as a blocking "wait for an administrator" modal.
+            URI to = URI.create(props.auth0().logoutReturnTo() + "?reason=activation_required");
             return ResponseEntity.status(HttpStatus.FOUND).location(to).build();
         }
 

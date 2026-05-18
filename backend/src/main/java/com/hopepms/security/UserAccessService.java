@@ -59,12 +59,23 @@ public class UserAccessService {
         this.provisioning = provisioning;
     }
 
-    /** Live access state for {@code userId}: cache → DB on miss. Never throws. */
+    /**
+     * Live access state for {@code userId}: cache → DB on miss.
+     *
+     * <p>Returns {@code null} to mean <em>"could not be authoritatively
+     * resolved"</em> (DB unreachable / threw, or any indeterminate failure) —
+     * NOT "user is gone". The caller MUST treat {@code null} as "fall back to
+     * the login-time session snapshot", never as a reason to log the user out.
+     * A non-null snapshot is always authoritative: it was built either from a
+     * successful DB read or from a cache entry that itself came from one. Never
+     * throws.
+     */
     public UserAccessSnapshot snapshot(String userId) {
         UserAccessSnapshot cached = readCache(userId);
         if (cached != null) return cached;
 
         UserAccessSnapshot fresh = loadFromDb(userId);
+        if (fresh == null) return null;   // unresolved — do NOT cache, do NOT tear down
         writeCache(fresh);
         return fresh;
     }
@@ -82,13 +93,32 @@ public class UserAccessService {
 
     // ── internals ────────────────────────────────────────────────────────
 
+    /**
+     * @return a present snapshot if the row exists; an authoritative
+     *         {@link UserAccessSnapshot#absent} if the query definitively found
+     *         no row (account hard-deleted — the real-time teardown case);
+     *         or {@code null} if the database could not be consulted at all
+     *         (threw). {@code null} must NOT be read as "user gone" — the
+     *         caller falls back to the session snapshot instead of logging the
+     *         user out over infrastructure noise.
+     */
     private UserAccessSnapshot loadFromDb(String userId) {
-        ProvisioningService.UserAccount acc = provisioning.loadOrNull(userId);
-        if (acc == null) return UserAccessSnapshot.absent(userId);
-        return new UserAccessSnapshot(
-                true, acc.userId(), acc.username(), acc.email(),
-                acc.userType(), acc.recordStatus(), Set.copyOf(acc.rights())
-        );
+        try {
+            ProvisioningService.UserAccount acc = provisioning.loadOrNull(userId);
+            if (acc == null) return UserAccessSnapshot.absent(userId);
+            return new UserAccessSnapshot(
+                    true, acc.userId(), acc.username(), acc.email(),
+                    acc.userType(), acc.recordStatus(), Set.copyOf(acc.rights())
+            );
+        } catch (Exception ex) {
+            // DB unreachable, pool exhausted, a DataAccessException from the
+            // rights join, search_path/trigger fragility, … — none of these
+            // mean the account is invalid. Signal "unresolved" so the filter
+            // keeps the existing session alive instead of evicting it.
+            log.warn("Live ACL DB load failed for user {} — keeping existing session: {}",
+                    userId, ex.toString());
+            return null;
+        }
     }
 
     private UserAccessSnapshot readCache(String userId) {

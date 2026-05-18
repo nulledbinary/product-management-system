@@ -11,81 +11,92 @@ const reasonText: Record<string, string> = {
   guard_error: 'We could not verify your session — please sign in again.',
   invalid_state: 'Your sign-in session expired. Please try again.',
   auth0_token_failed: 'We could not complete sign-in. Please try again.',
+  session_ended: 'Your session ended. Please sign in again.',
 };
-const banner = reason ? reasonText[reason] : null;
+// `activation_required` is shown as a blocking modal (below), not the inline
+// banner, so a just-registered user can't miss it.
+const pendingActivation = reason === 'activation_required';
+const banner = reason && !pendingActivation ? reasonText[reason] : null;
 ---
 <BaseLayout title="Sign in · HopePMS" variant="hero">
-  <main class="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
-    <div class="grid w-full gap-10 lg:grid-cols-2 lg:gap-16">
-      <section class="hidden flex-col justify-between lg:flex">
-        <Logo href={null} />
+  <main class="relative mx-auto flex min-h-screen w-full max-w-[1100px] items-stretch px-4 py-10 sm:px-6 lg:px-8">
+    <div class="grid w-full items-center gap-10 lg:grid-cols-2 lg:gap-20">
+      <!-- Branding panel — Vision UI's full-height side panel, monochromed.
+           Hidden on mobile exactly as the reference does. -->
+      <section class="relative hidden min-h-[640px] overflow-hidden rounded-[28px] border border-line lg:block">
+        <div class="absolute inset-0 bg-mesh-hero opacity-90"></div>
+        <div class="absolute inset-0 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:54px_54px] [mask-image:radial-gradient(75%_70%_at_50%_40%,#000_30%,transparent_78%)]"></div>
+        <div class="absolute -bottom-40 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/[0.06] blur-3xl"></div>
 
-        <div class="space-y-8">
-          <div class="space-y-5">
-            <span class="chip-user animate-fade-in inline-flex">
-              <span class="mr-1 h-1.5 w-1.5 rounded-full bg-accent-mint animate-dot"></span>
+        <div class="relative flex h-full flex-col justify-between p-10">
+          <Logo href={null} />
+
+          <div class="flex flex-col items-center text-center">
+            <span class="text-2xs font-semibold uppercase tracking-[0.42em] text-ink-dim">
               Secure · Role-aware · Audit-stamped
             </span>
-            <h1 class="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-balance animate-rise">
-              Manage your product universe with
-              <span class="grad-text">surgical precision</span>.
+            <h1 class="mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight">
+              <span class="grad-text">Surgical precision</span><br />for your product universe.
             </h1>
-            <p class="max-w-md text-base leading-relaxed text-ink-muted text-pretty animate-rise delay-1">
+            <p class="mt-5 max-w-sm text-sm leading-relaxed text-ink-muted">
               Role-aware, audit-stamped, and zero-hard-delete by design. Built on
               Astro &amp; AWS — secured by Auth0, ready for production.
             </p>
           </div>
 
-          <ul class="grid max-w-md gap-3 sm:grid-cols-2">
+          <ul class="grid gap-2.5 sm:grid-cols-2">
             {[
               ['Auth0 + Google SSO', 'M9 12l2 2 4-4'],
               ['Server-side sessions', 'M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5z'],
               ['Per-right access control', 'M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z'],
               ['Soft-delete & recovery', 'M3 7h18M9 7V4h6v3M6 7l1 14h10l1-14'],
-            ].map(([label, d], i) => (
-              <li class="feature-line" style={`animation-delay:${180 + i * 110}ms`}>
-                <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-ink ring-1 ring-inset ring-white/15 transition-transform duration-300 group-hover:scale-105">
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d={d} /></svg>
+            ].map(([label, d]) => (
+              <li class="flex items-center gap-2.5 text-xs font-medium text-ink-muted">
+                <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10 text-ink ring-1 ring-inset ring-white/15">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d={d} /></svg>
                 </span>
-                <span class="relative text-sm font-medium">{label}</span>
+                {label}
               </li>
             ))}
           </ul>
         </div>
       </section>
 
-      <section class="flex items-center justify-center">
-        <div class="glass-strong w-full max-w-md p-8 sm:p-10 animate-fade-in">
-          <div class="mb-6 lg:hidden"><Logo href={null} /></div>
+      <!-- Form column -->
+      <section class="flex flex-col justify-center">
+        <div class="mx-auto w-full max-w-md">
+          <div class="mb-8 lg:hidden"><Logo href={null} /></div>
 
-          <header class="mb-7">
-            <h2 class="font-display text-2xl font-semibold tracking-tight">Welcome back</h2>
-            <p class="mt-1 text-sm text-ink-muted">Sign in to access HopePMS.</p>
+          <header class="mb-9">
+            <h2 class="font-display text-[32px] font-semibold leading-tight tracking-tight">Welcome back</h2>
+            <p class="mt-2 text-sm font-medium text-ink-muted">Sign in to access HopePMS.</p>
           </header>
 
           {banner && (
-            <div role="alert" class="mb-5 rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber">
+            <div role="alert" class="mb-6 rounded-2xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber">
               {banner}
             </div>
           )}
 
-          <form id="login-form" class="space-y-4" novalidate autocomplete="on">
+          <form id="login-form" class="space-y-5" novalidate autocomplete="on">
             <div>
               <label for="email" class="field-label">Work email</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autocomplete="username"
-                required
-                placeholder="you@hope.inc"
-                class="field"
-              />
+              <div class="grad-border rounded-[20px]">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autocomplete="username"
+                  required
+                  placeholder="you@hope.inc"
+                  class="block w-full rounded-[19px] bg-bg-deep px-5 py-3.5 text-sm text-ink placeholder:text-ink-dim focus:outline-none"
+                />
+              </div>
               <p class="field-error hidden" data-error="email"></p>
             </div>
 
-            <button type="submit" id="email-submit" class="btn-primary w-full">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/></svg>
+            <button type="submit" id="email-submit"
+                    class="btn-primary w-full !rounded-[20px] !py-3.5 text-xs font-bold uppercase tracking-[0.18em]">
               Continue
             </button>
             <p class="text-xs text-ink-dim text-center">
@@ -93,21 +104,84 @@ const banner = reason ? reasonText[reason] : null;
             </p>
           </form>
 
-          <div class="my-6 divider-text"><span>or</span></div>
+          <div class="my-7 divider-text"><span>or</span></div>
 
-          <button type="button" id="google-btn" class="btn-secondary w-full">
+          <button type="button" id="google-btn"
+                  class="btn-secondary w-full !rounded-[20px] !py-3.5">
             <img src="/google-icon.svg" alt="" width="16" height="16" />
             Sign in with Google
           </button>
 
-          <p class="mt-7 text-center text-sm text-ink-muted">
+          <p class="mt-9 text-center text-sm font-medium text-ink-muted">
             Don't have an account?
-            <a href="/register" class="font-medium text-ink underline decoration-white/30 underline-offset-4 hover:decoration-white transition-colors">Register</a>
+            <a href="/register" class="ms-1 font-bold text-ink underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-white">Register</a>
           </p>
         </div>
       </section>
     </div>
   </main>
+
+  <!-- Pending-activation modal — shown after a brand-new account finishes the
+       Auth0 round-trip but is still record_status != ACTIVE. -->
+  <div
+    id="activation-backdrop"
+    class:list={['modal-backdrop !z-[60]', { hidden: !pendingActivation }]}
+  ></div>
+  <div
+    id="activation-modal"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="activation-title"
+    aria-describedby="activation-msg"
+    tabindex="-1"
+    class:list={['modal-panel !z-[70] !w-[min(440px,92vw)]', { hidden: !pendingActivation }]}
+  >
+    <div class="flex items-start gap-3">
+      <span class="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-amber/15 text-accent-amber">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+        </svg>
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 id="activation-title" class="font-display text-lg font-semibold tracking-tight">Account pending activation</h2>
+        <p id="activation-msg" class="mt-2 text-sm leading-relaxed text-ink-muted">
+          Wait for an Administrator to activate your account.
+        </p>
+      </div>
+    </div>
+    <div class="mt-7 flex justify-end">
+      <button type="button" id="activation-ok" class="btn-primary h-10 px-6 text-sm">Got it</button>
+    </div>
+  </div>
+
+  <script is:inline>
+    (function () {
+      var backdrop = document.getElementById('activation-backdrop');
+      var panel = document.getElementById('activation-modal');
+      var okBtn = document.getElementById('activation-ok');
+      if (!panel || panel.classList.contains('hidden')) return;
+
+      function close() {
+        panel.classList.add('hidden');
+        if (backdrop) backdrop.classList.add('hidden');
+        document.removeEventListener('keydown', onKey);
+        // Drop ?reason= so a refresh doesn't re-trigger the modal.
+        try {
+          var u = new URL(window.location.href);
+          u.searchParams.delete('reason');
+          window.history.replaceState({}, '', u.pathname + u.search);
+        } catch (e) {}
+      }
+      function onKey(e) {
+        if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
+      }
+
+      okBtn && okBtn.addEventListener('click', close);
+      backdrop && backdrop.addEventListener('click', close);
+      document.addEventListener('keydown', onKey);
+      try { okBtn.focus(); } catch (e) {}
+    })();
+  </script>
 
   <script>
     // @ts-nocheck

@@ -3,25 +3,33 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import Logo from '@components/ui/Logo.astro';
 ---
 <BaseLayout title="Create your HopePMS account" variant="hero">
-  <main class="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
-    <div class="grid w-full gap-10 lg:grid-cols-2 lg:gap-16">
-      <section class="hidden flex-col justify-between lg:flex">
-        <Logo href={null} />
-        <div class="space-y-7">
-          <span class="chip-admin animate-fade-in inline-flex">
-            <span class="mr-1 h-1.5 w-1.5 rounded-full bg-accent-amber animate-dot"></span>
-            New account · Pending admin activation
-          </span>
-          <h1 class="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-balance animate-rise">
-            Join the <span class="grad-text">HopePMS</span> team.
-          </h1>
-          <p class="max-w-md text-base leading-relaxed text-ink-muted animate-rise delay-1">
-            After you confirm your email, an administrator will activate your
-            account before you can sign in. You'll receive standard
-            <span class="text-ink">USER</span>-tier rights by default.
-          </p>
-          <div class="glass p-5 animate-rise delay-2">
-            <p class="text-xs font-medium uppercase tracking-wider text-ink-muted">What happens next</p>
+  <main class="relative mx-auto flex min-h-screen w-full max-w-[1100px] items-stretch px-4 py-10 sm:px-6 lg:px-8">
+    <div class="grid w-full items-center gap-10 lg:grid-cols-2 lg:gap-20">
+      <!-- Branding panel — Vision UI's full-height side panel, monochromed. -->
+      <section class="relative hidden min-h-[680px] overflow-hidden rounded-[28px] border border-line lg:block">
+        <div class="absolute inset-0 bg-mesh-hero opacity-90"></div>
+        <div class="absolute inset-0 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:54px_54px] [mask-image:radial-gradient(75%_70%_at_50%_40%,#000_30%,transparent_78%)]"></div>
+        <div class="absolute -bottom-40 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/[0.06] blur-3xl"></div>
+
+        <div class="relative flex h-full flex-col justify-between p-10">
+          <Logo href={null} />
+
+          <div class="flex flex-col items-center text-center">
+            <span class="text-2xs font-semibold uppercase tracking-[0.42em] text-ink-dim">
+              New account · Pending admin activation
+            </span>
+            <h1 class="mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight">
+              Join the <span class="grad-text">HopePMS</span><br />team.
+            </h1>
+            <p class="mt-5 max-w-sm text-sm leading-relaxed text-ink-muted">
+              After you confirm your email, an administrator will activate your
+              account before you can sign in. You'll receive standard
+              <span class="text-ink">USER</span>-tier rights by default.
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-line bg-white/[0.03] p-5">
+            <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">What happens next</p>
             <ol class="mt-3 space-y-2 text-sm text-ink-muted">
               <li><span class="font-mono font-semibold text-ink">1.</span> Confirm your email via the link we send you.</li>
               <li><span class="font-mono font-semibold text-ink">2.</span> An admin activates your account.</li>
@@ -29,37 +37,53 @@ import Logo from '@components/ui/Logo.astro';
             </ol>
           </div>
         </div>
-        <p class="text-xs text-ink-dim">Already have an account? <a href="/login" class="text-ink underline decoration-white/30 underline-offset-4 hover:decoration-white">Sign in.</a></p>
       </section>
 
-      <section class="flex items-center justify-center">
-        <div class="glass-strong w-full max-w-md p-8 sm:p-10 animate-fade-in">
-          <div class="mb-6 lg:hidden"><Logo href={null} /></div>
-          <header class="mb-7">
-            <h2 class="font-display text-2xl font-semibold tracking-tight">Create your account</h2>
-            <p class="mt-1 text-sm text-ink-muted">You'll set your password on Auth0's hosted signup page.</p>
+      <!-- Form column — Vision UI wraps the sign-up form in a gradient-bordered card. -->
+      <section class="flex flex-col justify-center">
+        <div class="mx-auto w-full max-w-md">
+          <div class="mb-8 lg:hidden"><Logo href={null} /></div>
+
+          <header class="mb-7 text-center">
+            <h2 class="font-display text-[32px] font-semibold leading-tight tracking-tight">Create your account</h2>
+            <p class="mt-2 text-sm font-medium text-ink-muted">You'll set your password on Auth0's hosted signup page.</p>
           </header>
 
-          <form id="register-form" class="space-y-4" novalidate autocomplete="on">
-            <div>
-              <label for="email" class="field-label">Work email</label>
-              <input id="email" name="email" type="email" class="field" required autocomplete="username" placeholder="you@hope.inc" />
-              <p class="field-error hidden" data-error="email"></p>
+          <div class="grad-border rounded-[30px]">
+            <div class="rounded-[29px] bg-bg-surface p-8 sm:p-10">
+              <p class="mb-5 text-center text-base font-bold text-ink-muted">Register with</p>
+
+              <button type="button" id="google-btn"
+                      class="btn-secondary w-full !rounded-[20px] !py-3.5">
+                <img src="/google-icon.svg" alt="" width="16" height="16" />
+                Register with Google
+              </button>
+
+              <div class="my-6 divider-text"><span>or</span></div>
+
+              <form id="register-form" class="space-y-5" novalidate autocomplete="on">
+                <div>
+                  <label for="email" class="field-label">Work email</label>
+                  <div class="grad-border rounded-[20px]">
+                    <input id="email" name="email" type="email" required autocomplete="username"
+                           placeholder="you@hope.inc"
+                           class="block w-full rounded-[19px] bg-bg-deep px-5 py-3.5 text-sm text-ink placeholder:text-ink-dim focus:outline-none" />
+                  </div>
+                  <p class="field-error hidden" data-error="email"></p>
+                </div>
+
+                <button type="submit"
+                        class="btn-primary w-full !rounded-[20px] !py-3.5 text-xs font-bold uppercase tracking-[0.18em]">
+                  Continue to sign up
+                </button>
+              </form>
+
+              <p class="mt-7 text-center text-sm font-medium text-ink-muted">
+                Already a member?
+                <a href="/login" class="ms-1 font-bold text-ink underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-white">Sign in</a>
+              </p>
             </div>
-
-            <button type="submit" class="btn-primary w-full">Continue to sign up</button>
-          </form>
-
-          <div class="my-6 divider-text"><span>or</span></div>
-          <button type="button" id="google-btn" class="btn-secondary w-full">
-            <img src="/google-icon.svg" alt="" width="16" height="16" />
-            Register with Google
-          </button>
-
-          <p class="mt-7 text-center text-sm text-ink-muted">
-            Already a member?
-            <a href="/login" class="font-medium text-ink underline decoration-white/30 underline-offset-4 hover:decoration-white transition-colors">Sign in</a>
-          </p>
+          </div>
         </div>
       </section>
     </div>
