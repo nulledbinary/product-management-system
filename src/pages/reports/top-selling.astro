@@ -5,10 +5,10 @@ import AppShell from '@layouts/AppShell.astro';
   <section class="space-y-6">
     <!-- ─── Summary strip ───────────────────────────────────────────── -->
     <div class="grid gap-4 sm:grid-cols-4 reveal">
-      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Products ranked</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="count">—</p></div>
-      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Best seller</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="max">—</p><p class="mt-1 text-xs text-ink-dim truncate" data-stat="maxName"></p></div>
-      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Median sold</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="median">—</p><p class="mt-1 text-xs text-ink-dim">Half sell more, half less</p></div>
-      <div class="card !p-5"><p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Lowest mover</p><p class="mt-2 font-display text-3xl font-semibold" data-stat="min">—</p><p class="mt-1 text-xs text-ink-dim truncate" data-stat="minName"></p></div>
+      <div class="stat-card"><p class="stat-label">Products ranked</p><p class="stat-figure" data-stat="count">—</p></div>
+      <div class="stat-card"><p class="stat-label">Best seller</p><p class="stat-figure" data-stat="max">—</p><p class="stat-sub truncate" data-stat="maxName"></p></div>
+      <div class="stat-card"><p class="stat-label">Median sold</p><p class="stat-figure" data-stat="median">—</p><p class="stat-sub">Half sell more, half less</p></div>
+      <div class="stat-card"><p class="stat-label">Lowest mover</p><p class="stat-figure" data-stat="min">—</p><p class="stat-sub truncate" data-stat="minName"></p></div>
     </div>
 
     <!-- ─── Audit controls ──────────────────────────────────────────── -->
@@ -47,6 +47,7 @@ import AppShell from '@layouts/AppShell.astro';
     // @ts-nocheck
     import { getTopSelling } from '@lib/api/users';
     import { escapeHtml } from '@lib/security/sanitize';
+    import { countUp } from '@lib/utils/animateNumber';
 
     const wrap = document.getElementById('bars');
     const empty = document.getElementById('empty');
@@ -62,6 +63,8 @@ import AppShell from '@layouts/AppShell.astro';
     const nf = new Intl.NumberFormat();
 
     function setStat(k, v) { const el = document.querySelector(`[data-stat="${k}"]`); if (el) el.textContent = v; }
+    const qty = { format: (v) => nf.format(Math.round(v)) };
+    function countStat(k, v) { countUp(document.querySelector(`[data-stat="${k}"]`), v, qty); }
 
     function computeStats(list) {
       if (!list.length) { ['count','max','min','median','maxName','minName'].forEach((k)=>setStat(k,'—')); return null; }
@@ -71,12 +74,12 @@ import AppShell from '@layouts/AppShell.astro';
       const median = sorted.length % 2
         ? sorted[mid].totalQty
         : (sorted[mid - 1].totalQty + sorted[mid].totalQty) / 2;
-      setStat('count', nf.format(list.length));
-      setStat('max', nf.format(top.totalQty));
+      countStat('count', list.length);
+      countStat('max', top.totalQty);
       setStat('maxName', `${top.prodCode} · ${top.description}`);
-      setStat('min', nf.format(bottom.totalQty));
+      countStat('min', bottom.totalQty);
       setStat('minName', `${bottom.prodCode} · ${bottom.description}`);
-      setStat('median', nf.format(median));
+      countStat('median', median);
       return { median, max: top.totalQty };
     }
 

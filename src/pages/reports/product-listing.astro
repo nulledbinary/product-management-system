@@ -4,26 +4,26 @@ import AppShell from '@layouts/AppShell.astro';
 <AppShell title="Product Listing" subtitle="REP_001 · Active products with current price." requireRight="REP_001">
   <section class="space-y-6">
     <!-- ─── Summary strip ───────────────────────────────────────────── -->
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div class="card !p-5">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Products</p>
-        <p class="mt-2 font-display text-3xl font-semibold" data-stat="count">—</p>
-        <p class="mt-1 text-xs text-ink-dim">In the active catalogue.</p>
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 reveal">
+      <div class="stat-card">
+        <p class="stat-label">Products</p>
+        <p class="stat-figure" data-stat="count">—</p>
+        <p class="stat-sub">In the active catalogue.</p>
       </div>
-      <div class="card !p-5">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Distinct units</p>
-        <p class="mt-2 font-display text-3xl font-semibold" data-stat="units">—</p>
-        <p class="mt-1 text-xs text-ink-dim">pc · ea · mtr · pkg · ltr</p>
+      <div class="stat-card">
+        <p class="stat-label">Distinct units</p>
+        <p class="stat-figure" data-stat="units">—</p>
+        <p class="stat-sub">pc · ea · mtr · pkg · ltr</p>
       </div>
-      <div class="card !p-5">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Price range</p>
-        <p class="mt-2 font-display text-xl font-semibold tabular-nums" data-stat="range">—</p>
-        <p class="mt-1 text-xs text-ink-dim">Lowest → highest current price.</p>
+      <div class="stat-card">
+        <p class="stat-label">Price range</p>
+        <p class="stat-figure-sm" data-stat="range">—</p>
+        <p class="stat-sub">Lowest → highest current price.</p>
       </div>
-      <div class="card !p-5">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Latest effective</p>
-        <p class="mt-2 font-display text-xl font-semibold tabular-nums" data-stat="latest">—</p>
-        <p class="mt-1 text-xs text-ink-dim">Most recent price change.</p>
+      <div class="stat-card">
+        <p class="stat-label">Latest effective</p>
+        <p class="stat-figure-sm" data-stat="latest">—</p>
+        <p class="stat-sub">Most recent price change.</p>
       </div>
     </div>
 
@@ -82,6 +82,7 @@ import AppShell from '@layouts/AppShell.astro';
     // @ts-nocheck
     import { getProductReport } from '@lib/api/users';
     import { escapeHtml } from '@lib/security/sanitize';
+    import { countUp } from '@lib/utils/animateNumber';
 
     const tbody = document.getElementById('rows');
     const emptyState = document.getElementById('empty-state');
@@ -120,8 +121,8 @@ import AppShell from '@layouts/AppShell.astro';
 
     function updateStats() {
       const setText = (sel, v) => { const el = document.querySelector(sel); if (el) el.textContent = v; };
-      setText('[data-stat="count"]', String(rows.length));
-      setText('[data-stat="units"]', String(new Set(rows.map((r) => r.unit)).size || 0));
+      countUp(document.querySelector('[data-stat="count"]'), rows.length);
+      countUp(document.querySelector('[data-stat="units"]'), new Set(rows.map((r) => r.unit)).size || 0, { duration: 700 });
       if (rows.length) {
         const prices = rows.map((r) => Number(r.unitPrice)).filter((n) => !Number.isNaN(n));
         setText('[data-stat="range"]', prices.length ? `${fmt(Math.min(...prices))} – ${fmt(Math.max(...prices))}` : '—');
