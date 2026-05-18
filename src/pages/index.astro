@@ -1,7 +1,7 @@
 ---
-// Static landing page: bounces to /products. The AppShell guard there will
+// Static landing page: bounces to /dashboard. The AppShell guard there will
 // kick unauthenticated visitors over to /login.
-const target = '/products';
+const target = '/dashboard';
 ---
 <!doctype html>
 <html lang="en">
@@ -12,7 +12,7 @@ const target = '/products';
     <title>HopePMS</title>
   </head>
   <body>
-    <script is:inline>window.location.replace('/products');</script>
+    <script is:inline>window.location.replace('/dashboard');</script>
     <noscript>
       <a href={target}>Continue to HopePMS</a>
     </noscript>

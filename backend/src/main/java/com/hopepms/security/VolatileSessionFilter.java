@@ -21,10 +21,12 @@ import java.util.Optional;
 public class VolatileSessionFilter extends OncePerRequestFilter {
 
     private final VolatileSessionStore store;
+    private final UserAccessService access;
     private final HopePmsProperties props;
 
-    public VolatileSessionFilter(VolatileSessionStore store, HopePmsProperties props) {
+    public VolatileSessionFilter(VolatileSessionStore store, UserAccessService access, HopePmsProperties props) {
         this.store = store;
+        this.access = access;
         this.props = props;
     }
 
@@ -38,20 +40,37 @@ public class VolatileSessionFilter extends OncePerRequestFilter {
             Optional<SessionRecord> opt = store.lookup(sid.get());
             if (opt.isPresent()) {
                 SessionRecord record = opt.get();
-                List<SimpleGrantedAuthority> authorities = record.rights().stream()
-                        .map(r -> new SimpleGrantedAuthority("RIGHT_" + r))
-                        .toList();
 
-                HopePrincipal principal = new HopePrincipal(
-                        record.userId(), record.username(), record.email(),
-                        record.userType(), record.rights()
-                );
+                // Authorization state is resolved LIVE from the per-user ACL
+                // (cache → DB), never from the login-time session snapshot.
+                // A promote/demote/right-grant therefore takes effect on this
+                // very request; a deactivated or hard-deleted account is torn
+                // down here instead of lingering until the session TTL.
+                UserAccessSnapshot snap = access.snapshot(record.userId());
 
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                if (!snap.isActive()) {
+                    // Deactivated (record_status != ACTIVE) or row gone.
+                    // Kill the server session + cookie and leave the request
+                    // unauthenticated so any protected endpoint 401s and the
+                    // SPA reconciler bounces them to /login.
+                    store.invalidate(sid.get());
+                    clearCookie(res);
+                } else {
+                    List<SimpleGrantedAuthority> authorities = snap.rights().stream()
+                            .map(r -> new SimpleGrantedAuthority("RIGHT_" + r))
+                            .toList();
 
-                store.touch(record);
+                    HopePrincipal principal = new HopePrincipal(
+                            snap.userId(), snap.username(), snap.email(),
+                            snap.userType(), snap.rights()
+                    );
+
+                    UsernamePasswordAuthenticationToken auth =
+                            new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+
+                    store.touch(record);
+                }
             } else {
                 clearCookie(res);
             }
