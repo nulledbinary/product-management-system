@@ -8,8 +8,9 @@ interface Props {
   subtitle?: string;
   requireRight?: string;
   requireAdmin?: boolean;
+  requireOwner?: boolean;
 }
-const { title, subtitle, requireRight, requireAdmin } = Astro.props;
+const { title, subtitle, requireRight, requireAdmin, requireOwner } = Astro.props;
 ---
 <BaseLayout title={`${title} · HopePMS`} description={subtitle ?? 'HopePMS'} variant="app">
   <!-- Opaque boot cover: nothing behind it paints until the session is
@@ -122,9 +123,9 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
 
   <script
     is:inline
-    define:vars={{ requireRight, requireAdmin }}
+    define:vars={{ requireRight, requireAdmin, requireOwner }}
   >
-    window.__HOPEPMS_GUARD__ = { requireRight: requireRight ?? null, requireAdmin: !!requireAdmin };
+    window.__HOPEPMS_GUARD__ = { requireRight: requireRight ?? null, requireAdmin: !!requireAdmin, requireOwner: !!requireOwner };
   </script>
 
   <script>
@@ -137,7 +138,7 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
       touch,
     } from '@lib/security/timeout';
 
-    const { requireRight, requireAdmin } = window.__HOPEPMS_GUARD__ || {};
+    const { requireRight, requireAdmin, requireOwner } = window.__HOPEPMS_GUARD__ || {};
     const shell = document.getElementById('app-shell');
     const splash = document.getElementById('boot-splash');
     const sidebar = document.getElementById('app-sidebar');
@@ -159,6 +160,9 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
       if (requireRight && !session.rights.has(requireRight)) {
         return redirect('/products?reason=forbidden');
       }
+      if (requireOwner && session.owner !== true) {
+        return redirect('/products?reason=forbidden');
+      }
 
       document.querySelectorAll('[data-username]').forEach((el) => el.textContent = session.username);
       document.querySelectorAll('[data-usertype]').forEach((el) => el.textContent = session.userType);
@@ -171,6 +175,10 @@ const { title, subtitle, requireRight, requireAdmin } = Astro.props;
             : session.rights.has(r);
         if (visible) el.classList.remove('hidden');
       });
+
+      if (session.owner === true) {
+        document.querySelectorAll('[data-owner]').forEach((el) => el.classList.remove('hidden'));
+      }
 
       document.getElementById('signout-btn')?.addEventListener('click', async () => {
         await signOut();

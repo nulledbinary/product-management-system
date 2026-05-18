@@ -23,6 +23,8 @@ export interface SessionIdentity {
   readonly email: string;
   readonly userType: UserType;
   readonly rights: ReadonlySet<string>;
+  /** True only for the system owner (Infra / IT Tech) — full SUPERADMIN bypass. */
+  readonly owner: boolean;
 }
 
 const CHANNEL = 'hopepms-auth';
@@ -47,6 +49,10 @@ export function isSuperAdmin(): boolean {
   return $session.get()?.userType === 'SUPERADMIN';
 }
 
+export function isOwner(): boolean {
+  return $session.get()?.owner === true;
+}
+
 /**
  * Pulls identity from the backend using the HttpOnly session cookie.
  * Returns null if the cookie is missing or the server says it's invalid.
@@ -68,6 +74,7 @@ export async function loadSession(): Promise<SessionIdentity | null> {
       email: string;
       userType: UserType;
       rights: string[];
+      owner?: boolean;
     };
     const identity: SessionIdentity = {
       userId: body.userId,
@@ -75,6 +82,7 @@ export async function loadSession(): Promise<SessionIdentity | null> {
       email: body.email ?? '',
       userType: body.userType,
       rights: new Set(body.rights ?? []),
+      owner: body.owner === true,
     };
     $session.set(identity);
     return identity;
