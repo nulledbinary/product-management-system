@@ -3,7 +3,7 @@
 Hope, Inc. Product Management System (HopePMS). A secure, role-aware product
 management web app for the HopeDB schema.
 
-> Stack: **Astro 4 (SSR · Node adapter) · Tailwind CSS · Auth0 SPA · AWS Lambda · API Gateway · RDS PostgreSQL**
+> Stack: **Astro 4 (SSR · Node adapter) · Tailwind CSS · Auth0 SPA · AWS Amplify · API Gateway · RDS PostgreSQL · SpringBoot (Authentication and SSO Security)**
 
 ---
 
@@ -17,75 +17,68 @@ the Lambda+SQL layer for security.
 
 ### Project layout
 
-```
-.
-├── astro.config.mjs            # Astro SSR config (Node adapter)
-├── tailwind.config.mjs         # Design tokens — gradient mesh, glassmorphism
-├── tsconfig.json               # @/, @components/, @lib/, @server/ path aliases
-├── .env.example                # Copy to .env and fill in
-├── public/                     # Static assets (favicon, Google icon)
-└── src/
-    ├── layouts/
-    │   ├── BaseLayout.astro    # <html> shell, hero gradient mesh background
-    │   └── AppShell.astro      # Authenticated shell — guards, sidebar, top bar, timer
-    ├── components/
-    │   ├── Sidebar.astro       # Rights-gated nav
-    │   ├── TopBar.astro        # Title + idle timer chip
-    │   ├── ProductFormModal.astro
-    │   ├── ConfirmModal.astro
-    │   └── ui/Logo.astro
-    ├── pages/
-    │   ├── index.astro         # → /products
-    │   ├── login.astro         # Email + Google OAuth (Auth0 Universal Login)
-    │   ├── register.astro
-    │   ├── auth/callback.astro
-    │   ├── products/
-    │   │   ├── index.astro     # Active list + CRUD + price history drawer
-    │   │   └── deleted.astro   # Admin-only recovery panel
-    │   ├── reports/
-    │   │   ├── product-listing.astro
-    │   │   └── top-selling.astro
-    │   ├── admin/users.astro   # SUPERADMIN-protected user management
-    │   └── api/[...route].ts   # Dev-time proxy → Lambda handlers
-    ├── styles/global.css       # Tailwind layers + components (.btn-*, .field, .glass, …)
-    └── lib/
-        ├── security/           # ⚠️ critical — see “Security model” below
-        │   ├── crypto.ts       # AES-GCM, HKDF, per-tab ephemeral salt
-        │   ├── session.ts      # Encrypted sessionStorage vault
-        │   ├── timeout.ts      # Inactivity watchdog
-        │   ├── pathGuard.ts    # ../../../ blocklist + structured whitelists
-        │   ├── sanitize.ts     # HTML/URL output encoding
-        │   └── index.ts
-        ├── auth/
-        │   ├── auth0Client.ts  # SPA client (cacheLocation: 'memory')
-        │   └── rights.ts       # useRights / isAdmin / canSeeStamp
-        ├── api/
-        │   ├── client.ts       # Authenticated fetch wrapper
-        │   ├── products.ts
-        │   └── users.ts
-        └── utils/stamp.ts      # 'ACTION userId YYYY-MM-DD HH:MM'
+Here is a plain-English breakdown of your project. Instead of looking at it purely as a list of files, I’ve organized it into the functional "building blocks" of how your application works, from what the user sees down to the database.
 
-server/                         # ← Deployed as AWS Lambda
-├── tsconfig.json
-├── lib/
-│   ├── auth.ts                 # Auth0 JWT verifier (RS256, JWKS cache)
-│   ├── http.ts                 # API Gateway response helpers + CORS lock
-│   ├── sanitize.ts             # Server mirror of pathGuard
-│   ├── stamp.ts
-│   └── rights.ts
-├── db/
-│   ├── pool.ts                 # pg pool, parameterised query helper, withTx
-│   ├── schema.sql              # Full HopeDB DDL + HopePMS additions + triggers + views
-│   ├── seed-hopedb.sql         # Original HopeDB business data (HopeDB (3).sql)
-│   └── seed-superadmin.sql     # SUPERADMIN seed (auth0|REPLACE_ME)
-└── handlers/
-    ├── me.ts                   # GET /api/me — JIT provisioning + 403 not_activated
-    ├── products.ts             # CRUD + soft delete + price history
-    ├── admin-users.ts          # Activate / deactivate (SUPERADMIN-protected)
-    └── reports.ts              # REP_001 / REP_002
-```
+### 1. The Setup & Foundation (Root Files)
 
----
+This is the instruction manual for the app's environment. It tells the system how to build the app, how to style it, and where to find key configurations.
+
+* **The Framework:** Powered by Astro for rendering pages.
+* **The Look:** Styled with Tailwind CSS, utilizing modern design elements like glassmorphism (frosted glass effects) and gradient meshes.
+* **Environment:** Secure placeholders for API keys and environment variables.
+
+### 2. The Frontend: What the User Sees (`/src`)
+
+This is the entire visual side of the app that runs in the user's web browser.
+
+* **The Layouts:**
+* The core foundation of every page (the `<html>` shell and background).
+* The "Secure Shell" that wraps the app once a user logs in, giving them a sidebar, a top navigation bar, and an idle timer.
+
+
+* **The Pages (Screens):**
+* **Authentication:** Login and registration pages, powered by Auth0 (Google OAuth + Email).
+* **Products:** A dashboard to view, add, edit, and delete products, including a drawer to see price history. It also has a special "recycle bin" where admins can recover deleted items.
+* **Reports:** Pages dedicated to generating business reports (like product listings and top sellers).
+* **Admin Tools:** A restricted area where "Superadmins" can manage users.
+
+
+* **The Components:** Reusable UI pieces like logos, confirmation pop-ups, product forms, and the navigation menus.
+
+### 3. Frontend Security & Logic (`/src/lib`)
+
+This is the "bodyguard" that lives in the user's browser, making sure they behave and stay safe.
+
+* **Critical Security:**
+* Encrypts the user's session data in the browser so it can't be stolen.
+* Watches for user inactivity to automatically log them out.
+* Sanitizes everything to prevent malicious code from being injected.
+* Blocks users from accessing folders or paths they shouldn't see.
+
+
+* **Permissions:** Checks what rights a user has (e.g., "Is this person an admin?" or "Are they allowed to see this action stamp?").
+* **API Client:** A secure messenger that takes the user's requests and sends them to the backend server.
+
+### 4. The Backend: The Engine Room (`/server`)
+
+This is the hidden server-side code deployed on AWS (as Lambda functions). It processes requests, handles the heavy lifting, and enforces ultimate security.
+
+* **Security Checkpoint (`lib/auth.ts`):** Before the server does *anything*, it verifies the user's identity (validating their JWT token from Auth0).
+* **The Handlers (API Endpoints):**
+* **User Provisioning (`me.ts`):** Creates user profiles on the fly when they first log in, but blocks them if their account hasn't been activated by an admin.
+* **Products (`products.ts`):** Actually executes the creation, reading, updating, and "soft deleting" of products, while logging price histories.
+* **Admin Tools (`admin-users.ts`):** The secure endpoint that allows Superadmins to activate or deactivate staff accounts.
+* **Reports (`reports.ts`):** Crunches the data to generate the business reports requested by the frontend.
+
+
+
+### 5. The Database (`/server/db`)
+
+This is the filing cabinet (PostgreSQL) where all permanent data lives.
+
+* **The Connection:** Tools to securely connect the server to the database and ensure transactions happen safely.
+* **The Blueprint (`schema.sql`):** The exact structure of your tables, custom views, and automated triggers.
+* **The Seeds:** Starting data to get the app running, including the original business data and the setup for the first Superadmin account.
 
 ## 🔒 Security model
 
